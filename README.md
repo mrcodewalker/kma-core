@@ -46,7 +46,6 @@ $ mvn install`
 
 ### Bước 7: Tạo ra file restart.bash để có thể tiện dễ dàng khởi động lại chương trình nếu có thay đổi chương trình mới
 ```nginx
-
 $ kill -9 $(pgrep -f KMALegend)
 $ nohup java -jar KMALegend-0.0.1-SNAPSHOT.jar > app.log 2>&1 &
 $ sleep 2
@@ -58,9 +57,9 @@ $ sudo ufw reload
 $ sudo ufw status`
 
 ### Bước 9: Cấu hình nginx cho backend server
-
+```nginx
 # configuration file /etc/nginx/sites-enabled/kma-legend:
-`server {
+server {
     server_name kma-legend.click www.kma-legend.click;
 
     # Security headers
@@ -111,8 +110,8 @@ server {
     listen 80;
     server_name kma-legend.click www.kma-legend.click;
     return 301 https://$host$request_uri;
-}
+}`
 
-•	Bước 10: Cấu hình nginx thành công và kiểm tra
+### Bước 10: Cấu hình nginx thành công và kiểm tra
 sudo nginx -t
 sudo systemctl reload nginx`
