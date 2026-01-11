@@ -1,9 +1,10 @@
 # Hướng dẫn cài đặt và cấu hình hệ thống hỗ trợ học tập thông minh
 
 ### Bước 1: Truy cập vào github và clone dự án về máy hiện tại
-
-`$ git clone https://github.com/mrcodewalker/kma-core.git
-$ cd kma-core/KMALegend`
+```bash
+$ git clone https://github.com/mrcodewalker/kma-core.git
+$ cd kma-core/KMALegend
+```
 
 ### Bước 2: Tự tạo 1 file SYSTEM32.env mục đích file này để chạy các biến môi trường được định nghĩa ở đây
 
@@ -39,8 +40,10 @@ public void addCorsMappings(CorsRegistry registry) {
 ```
 
 ### Bước 4: Chạy câu lệnh đóng gói chương trình và triển khai lên server
-`$ mvn clean
-$ mvn install`
+```bash
+$ mvn clean
+$ mvn install
+```
 
 ### Bước 5: Kiểm tra file đóng gói .jar ở trong thư mục target ( cùng cấp với src )
  <img width="610" height="583" alt="image" src="https://github.com/user-attachments/assets/bd56a512-ae90-439b-8b4d-d4b1290a4679" />
@@ -49,15 +52,19 @@ $ mvn install`
  <img width="945" height="355" alt="image" src="https://github.com/user-attachments/assets/894cbc7c-0e3f-4ec8-b6ec-1ea3ddb7b7c3" />
 
 ### Bước 7: Tạo ra file restart.bash để có thể tiện dễ dàng khởi động lại chương trình nếu có thay đổi chương trình mới
-`$ kill -9 $(pgrep -f KMALegend)
+```bash
+$ kill -9 $(pgrep -f KMALegend)
 $ nohup java -jar KMALegend-0.0.1-SNAPSHOT.jar > app.log 2>&1 &
 $ sleep 2
-$ tail -f app.log`
+$ tail -f app.log
+```
 
 ###   Bước 8: Mở firewall port backend đang chạy
-`$ sudo ufw allow 8765
+```bash
+$ sudo ufw allow 8765
 $ sudo ufw reload
-$ sudo ufw status`
+$ sudo ufw status
+```
 
 ### Bước 9: Cấu hình nginx cho backend server
 ```nginx
@@ -117,5 +124,7 @@ server {
 ```
 
 ### Bước 10: Cấu hình nginx thành công và kiểm tra
-`sudo nginx -t
-sudo systemctl reload nginx`
+```bash
+$ sudo nginx -t
+$ sudo systemctl reload nginx
+```
