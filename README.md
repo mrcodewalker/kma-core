@@ -38,7 +38,8 @@ public void addCorsMappings(CorsRegistry registry) {
 ### Bước 4: Chạy câu lệnh đóng gói chương trình và triển khai lên server
 `$ mvn clean
 $ mvn install`
-•	Bước 5: Kiểm tra file đóng gói .jar ở trong thư mục target ( cùng cấp với src )
+
+### Bước 5: Kiểm tra file đóng gói .jar ở trong thư mục target ( cùng cấp với src )
  <img width="610" height="583" alt="image" src="https://github.com/user-attachments/assets/bd56a512-ae90-439b-8b4d-d4b1290a4679" />
 
 ### Bước 6: Thực hiện copy file KMALegend-0.0.1-SNAPSHOT.jar sang server Linux
