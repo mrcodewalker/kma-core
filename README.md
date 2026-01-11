@@ -110,8 +110,8 @@ server {
     server_name kma-legend.click www.kma-legend.click;
     return 301 https://$host$request_uri;
 }
+```
 
 ### Bước 10: Cấu hình nginx thành công và kiểm tra
-sudo nginx -t
-sudo systemctl reload nginx
-```
+`sudo nginx -t
+sudo systemctl reload nginx`
