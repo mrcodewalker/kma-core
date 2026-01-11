@@ -6,7 +6,9 @@
 $ cd kma-core/KMALegend`
 
 ### Bước 2: Tự tạo 1 file SYSTEM32.env mục đích file này để chạy các biến môi trường được định nghĩa ở đây
-`SPRING_DATASOURCE_URL=jdbc:mysql://36.50.54.109:3306/kmalegend
+
+```env
+SPRING_DATASOURCE_URL=jdbc:mysql://36.50.54.109:3306/kmalegend
 SPRING_DATASOURCE_USERNAME=
 SPRING_DATASOURCE_PASSWORD=
 SERVER_PORT=8765
@@ -20,7 +22,8 @@ SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
 SPRING_MVC_CORS_ALLOWED_ORIGINS=https://kma-legend.click
 JWT_SECRET=Z54uiPhveohL/uORp8a8rHhu0qalR4Mj+aIOz5ZA5zY=
 JWT_EXPIRATION=86400000
-ENABLED_SWAGGER=true`
+ENABLED_SWAGGER=true
+```
 
 ### Bước 3: Ở thư mục config trong dự án hãy sửa đổi file WebConfig.java để CORS tương ứng với domain mới của bạn hoặc giữ nguyên nếu muốn chạy local
 ```java
