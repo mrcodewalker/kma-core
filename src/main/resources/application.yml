@@ -35,15 +35,15 @@ jwt:
   expiration: ${JWT_EXPIRATION}
 
 springdoc:
-  enabled: ${ENABLED_SWAGGER:false}
+  enabled: ${ENABLED_SWAGGER:true}
   swagger-ui:
-    enabled: ${ENABLED_SWAGGER:false}
+    enabled: ${ENABLED_SWAGGER:true}
     path: /swagger-ui.html
     operationsSorter: method
     tryItOutEnabled: true
     filter: true
   api-docs:
-    enabled: ${ENABLED_SWAGGER:false}
+    enabled: ${ENABLED_SWAGGER:true}
     path: /api-docs
 
 kmalegend:

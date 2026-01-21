@@ -2,8 +2,10 @@ package com.example.KMALegend.service.impl;
 
 import com.example.KMALegend.common.responses.TimelineResponse;
 import com.example.KMALegend.common.responses.VirtualCalendarResponse;
+import com.example.KMALegend.entity.Student;
 import com.example.KMALegend.entity.StudentSessions;
 import com.example.KMALegend.repository.StudentSessionsRepository;
+import com.example.KMALegend.service.StudentService;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -38,6 +40,8 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +50,7 @@ public class LoginServiceImpl{
     private HttpClientContext context;
     private CloseableHttpClient httpClient;
     private final StudentSessionServiceImpl sessionService;
+    private final StudentService studentService;
     private static final String LOGIN_URL = "http://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/Login.aspx";
     private static final String STUDENT_PROFILE_URL = "http://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/StudentProfileNew/HoSoSinhVien.aspx";
     private static final String STUDENT_SCHEDULE_URL = "http://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/Reports/Form/StudentTimeTable.aspx";
@@ -126,6 +131,17 @@ public class LoginServiceImpl{
             String studentCode = profileDoc.select("input[name=txtMaSV]").val();
             String gender = profileDoc.select("select[name=drpGioiTinh] option[selected]").text();
             String birthday = profileDoc.select("input[name=txtNgaySinh]").val();
+
+            // Parse student class from student code and create student record if not exists
+            String studentClass = parseStudentClassFromCode(studentCode);
+            if (!studentService.existByStudentCode(studentCode)) {
+                Student student = Student.builder()
+                        .studentCode(studentCode)
+                        .studentName(displayName)
+                        .studentClass(studentClass)
+                        .build();
+                studentService.createStudent(student);
+            }
 
             Map<String, String> studentInfo = new HashMap<>();
             studentInfo.put("display_name", displayName);
@@ -372,52 +388,62 @@ public class LoginServiceImpl{
 
 
     private Map<String, String> parseVirtualCalendar(String studySchedule) throws ParseException {
+        // More tolerant parser for virtual calendar blocks.
+        // Handles multiple ranges like:
+        // "Từ 19/01/2026 đến 08/02/2026: (1) Thứ 2 tiết 10,11,12 (LT) Thứ 4 tiết 10,11,12 (LT)
+        //  Từ 02/03/2026 đến 12/04/2026: (2) Thứ 2 tiết 10,11,12 (LT) Thứ 4 tiết 10,11,12 (LT)"
+        // Also handles ranges that have no weekday info (will be skipped):
+        // "Từ 04/05/2026 đến 31/05/2026: (LT) (Lý thuyết)"
         Map<String, String> result = new HashMap<>();
-        List<String> startDay = new ArrayList<>();
-        List<String> endDay = new ArrayList<>();
-        List<String> lessons = new ArrayList<>();
-        List<String> dayInWeek = new ArrayList<>();
-        String[] line = studySchedule.split("Từ");
-        for (String clone : line){
-            if (clone.length()<2) continue;
-            String[] splitOver = clone.split(":");
-            String start = "";
-            String end = "";
-            String day = "";
-            String lesson = "";
-            start = splitOver[0].substring(0, splitOver[0].indexOf("đến")).trim();
-            end = splitOver[0].substring(splitOver[0].lastIndexOf("đến")+3).trim();
+        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
 
-            String[] findLessons = splitOver[1].split("Thứ");
-            Calendar calendar = Calendar.getInstance();
+        // Regex to capture each range and its content until the next "Từ ... đến" or end of string
+        Pattern rangePattern = Pattern.compile(
+                "Từ\\s*(\\d{2}/\\d{2}/\\d{4})\\s*đến\\s*(\\d{2}/\\d{2}/\\d{4})\\s*:?(.*?)(?=Từ\\s*\\d{2}/\\d{2}/\\d{4}\\s*đến|$)",
+                Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
 
-            SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-            for (String each: findLessons) {
-                if (each.length() > 5) {
-                    day = each.substring(0, each.indexOf("tiết")).trim();
-                    lesson = each.substring(each.indexOf("tiết") + 4, each.indexOf("(")).trim();
-                    dayInWeek.add(day);
-                    lessons.add(lesson);
-                    Date starts = sdf.parse(start);
-                    Date ends = sdf.parse(end);
-                    calendar.setTime(starts);
-                    while (!calendar.getTime().after(ends)) {
-                        int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
-                        if (dayOfWeek == dayOfWeekToCalendarDay(day+"")) {
-                            String dateStr = sdf.format(calendar.getTime());
-                            if (result.get("days")==null){
-                                result.put("days", dateStr);
-                                result.put("lessons", lesson);
-                            } else {
-                                result.put("days", result.get("days")+" "+dateStr);
-                                result.put("lessons", result.get("lessons")+" "+lesson);
-                            }
+        // Regex to capture weekday + lesson list inside a range
+        Pattern weekdayPattern = Pattern.compile("Thứ\\s*(\\d)\\s*tiết\\s*([\\d,]+)", Pattern.CASE_INSENSITIVE);
+
+        Matcher rangeMatcher = rangePattern.matcher(studySchedule);
+        while (rangeMatcher.find()) {
+            String startStr = rangeMatcher.group(1);
+            String endStr = rangeMatcher.group(2);
+            String body = rangeMatcher.group(3);
+
+            Date startDate = sdf.parse(startStr);
+            Date endDate = sdf.parse(endStr);
+
+            Matcher weekdayMatcher = weekdayPattern.matcher(body);
+            boolean foundWeekday = false;
+            while (weekdayMatcher.find()) {
+                foundWeekday = true;
+                String dayStr = weekdayMatcher.group(1);          // e.g. "2"
+                String lessonsStr = weekdayMatcher.group(2);      // e.g. "10,11,12"
+
+                int targetDow = dayOfWeekToCalendarDay(dayStr);
+                Calendar calendar = Calendar.getInstance();
+                calendar.setTime(startDate);
+                while (!calendar.getTime().after(endDate)) {
+                    int dow = calendar.get(Calendar.DAY_OF_WEEK);
+                    if (dow == targetDow) {
+                        String dateStr = sdf.format(calendar.getTime());
+                        if (!result.containsKey("days")) {
+                            result.put("days", dateStr);
+                            result.put("lessons", lessonsStr);
+                        } else {
+                            result.put("days", result.get("days") + " " + dateStr);
+                            result.put("lessons", result.get("lessons") + " " + lessonsStr);
                         }
-                        calendar.add(Calendar.DATE, 1);
                     }
+                    calendar.add(Calendar.DATE, 1);
                 }
             }
 
+            // If no weekday info is found in this block, just ignore that block (prevents crashes)
+            if (!foundWeekday) {
+                continue;
+            }
         }
         return result;
     }
@@ -435,6 +461,40 @@ public class LoginServiceImpl{
 
     private String md5(String input) {
         return org.apache.commons.codec.digest.DigestUtils.md5Hex(input);
+    }
+
+    /**
+     * Parse student class from student code
+     * Example: CT070218 -> CT7B (02 is the 2nd class, so B)
+     *          DT050103 -> DT5A (01 is the 1st class, so A)
+     * Pattern: First 2 chars (major) + chars 2-3 (year, remove leading zero) + letter from chars 4-5 (class number)
+     * Class number: 01 -> A, 02 -> B, 03 -> C, ..., 26 -> Z
+     */
+    private String parseStudentClassFromCode(String studentCode) {
+        if (studentCode == null || studentCode.length() < 6) {
+            return null;
+        }
+
+        try {
+            // Extract components
+            String major = studentCode.substring(0, 2); // CT, DT, etc.
+            String yearStr = studentCode.substring(2, 4); // 07, 05, etc.
+            String classNumStr = studentCode.substring(4, 6); // 02, 01, etc.
+
+            // Remove leading zero from year
+            int year = Integer.parseInt(yearStr);
+            String yearWithoutZero = String.valueOf(year);
+
+            // Convert class number to letter (01 -> A, 02 -> B, etc.)
+            int classNum = Integer.parseInt(classNumStr);
+            char classLetter = (char) ('A' + classNum - 1);
+
+            // Combine: major + year + letter
+            return major + yearWithoutZero + classLetter;
+        } catch (Exception e) {
+            // If parsing fails, return null
+            return null;
+        }
     }
     private Map<String, String> parseSchedule(String studySchedule) throws ParseException {
         // Loại bỏ các thẻ HTML bằng cách sử dụng Jsoup để lấy văn bản thuần túy
