@@ -2,7 +2,7 @@ package com.example.KMALegend.controller;
 
 import com.example.KMALegend.dto.StudentSessionDTO;
 import com.example.KMALegend.encode.DecryptedRequestWrapper;
-import com.example.KMALegend.service.StudentSessionService;
+import com.example.KMALegend.service.impl.StudentSessionServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,7 +20,7 @@ import java.util.Map;
 @Tag(name = "Student Session", description = "API quản lý phiên đăng nhập sinh viên")
 public class StudentSessionController {
     
-    private final StudentSessionService studentSessionService;
+    private final StudentSessionServiceImpl studentSessionService;
     private final ObjectMapper objectMapper;
     
     @PostMapping("/list")
@@ -43,8 +43,7 @@ public class StudentSessionController {
                 studentCode = null;
             }
             
-            Page<StudentSessionDTO> result = studentSessionService
-                    .getStudentSessions(studentCode, page, size);
+            Page<StudentSessionDTO> result = null;
             
             return ResponseEntity.ok(result);
             

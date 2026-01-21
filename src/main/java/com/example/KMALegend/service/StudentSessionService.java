@@ -13,15 +13,15 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class StudentSessionService {
-    
+
     private final StudentSessionRepository studentSessionRepository;
     private final ModelMapper modelMapper;
-    
+
     public Page<StudentSessionDTO> getStudentSessions(String studentCode, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<StudentSessions> studentSessions = studentSessionRepository
                 .findByStudentCodeContaining(studentCode, pageable);
-        
+
         return studentSessions.map(session -> modelMapper.map(session, StudentSessionDTO.class));
     }
 }

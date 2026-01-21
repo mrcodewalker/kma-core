@@ -12,9 +12,8 @@ import org.springframework.web.client.RestTemplate;
 
 @Service
 @RequiredArgsConstructor
-public class StudentSessionServiceImpl implements StudentSessionService {
+public class StudentSessionServiceImpl  {
     private final StudentSessionsRepository studentSessionsRepository;
-    @Override
     public void saveUserSession(StudentSessions studentSessions, HttpServletRequest request) {
         studentSessions.setDeviceInfo(request.getHeader("User-Agent"));
         studentSessions.setUserAgent(request.getHeader("User-Agent"));
