@@ -193,7 +193,7 @@ public class ScoreServiceImpl implements ScoreService {
             if (word.isEmpty()) {
                 continue;
             }
-            int keep = Math.min(3, word.length());
+            int keep = Math.min(1, word.length());
             sb.append(word, 0, keep)
                     .append("*".repeat(word.length() - keep))
                     .append(" ");
