@@ -2,8 +2,10 @@ package com.example.KMALegend.controller;
 
 import com.example.KMALegend.dto.ScoreBatchRequestDTO;
 import com.example.KMALegend.entity.ScoreBatch;
+import com.example.KMALegend.entity.Student;
 import com.example.KMALegend.encode.DecryptedRequestWrapper;
 import com.example.KMALegend.service.ScoreBatchService;
+import com.example.KMALegend.service.StudentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -25,6 +27,7 @@ public class ScoreBatchController {
 
     private final ScoreBatchService scoreBatchService;
     private final ObjectMapper objectMapper;
+    private final StudentService studentService;
 
     @Operation(summary = "Create or update score batch",
             description = "Creates a new score batch or updates existing one for a student")
@@ -57,7 +60,7 @@ public class ScoreBatchController {
     }
 
     @Operation(summary = "Get score batch by encrypted student code",
-            description = "Decrypts the student code and returns the score batch")
+            description = "Decrypts the student code and returns the score batch with masked student info")
     @GetMapping("/student/encrypted")
     public ResponseEntity<?> getScoreBatchByEncryptedCode(
             @RequestParam String encryptedKey,
@@ -65,17 +68,55 @@ public class ScoreBatchController {
             @RequestParam String iv) {
         try {
             ScoreBatch result = scoreBatchService.getScoreBatchByEncryptedStudentCode(encryptedKey, encryptedData, iv);
-            if (result != null) {
-                return ResponseEntity.ok(result);
-            } else {
+            if (result == null) {
                 return ResponseEntity.notFound().build();
             }
+            Student student = studentService.findByStudentCode(result.getStudentCode());
+            Map<String, Object> studentInfo = new java.util.HashMap<>();
+            if (student != null) {
+                studentInfo.put("display_name", student.getStudentName());
+                studentInfo.put("student_code", student.getStudentCode());
+                studentInfo.put("gender", student.getGender());
+                studentInfo.put("birthday", student.getBirthday());
+                studentInfo.put("birth_place", maskField(student.getBirthPlace()));
+                studentInfo.put("id_card", maskField(student.getIdCard()));
+                studentInfo.put("bank_account", maskField(student.getBankAccount()));
+                studentInfo.put("enroll_semester", maskField(student.getEnrollSemester()));
+                studentInfo.put("phone", maskField(student.getPhone()));
+                studentInfo.put("email", maskEmail(student.getEmail()));
+            }
+            return ResponseEntity.ok(Map.of(
+                    "student_info", studentInfo,
+                    "score_batch", result
+            ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "Bad Request",
                     "message", e.getMessage()
             ));
         }
+    }
+
+    private String maskField(String value) {
+        if (value == null || value.isBlank()) {
+            return value == null ? "" : value;
+        }
+        int keep = Math.min(2, value.length());
+        return value.substring(0, keep) + "*".repeat(value.length() - keep);
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return email == null ? "" : email;
+        }
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 0) {
+            return maskField(email);
+        }
+        String local = email.substring(0, atIndex);
+        String domain = email.substring(atIndex);
+        int keep = Math.min(2, local.length());
+        return local.substring(0, keep) + "*".repeat(local.length() - keep) + domain;
     }
 
     @Operation(summary = "Get score batch by student code",

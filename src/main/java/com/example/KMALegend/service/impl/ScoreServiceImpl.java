@@ -152,6 +152,8 @@ public class ScoreServiceImpl implements ScoreService {
                     .scoreOverall(clone.getScoreOverall())
                     .scoreFirst(clone.getScoreFirst())
                     .scoreText(clone.getScoreText())
+                    .subjectId(clone.getSubject().getSubjectId())
+                    .subjectCredit(clone.getSubject().getSubjectCredits())
                     .subjectName(maskSubjectName(clone.getSubject().getSubjectName()))
                     .build();
             data.add(scoreResponse);
@@ -185,8 +187,18 @@ public class ScoreServiceImpl implements ScoreService {
         if (name == null || name.isBlank()) {
             return name;
         }
-        int keep = Math.min(3, name.length());
-        return name.substring(0, keep) + "*".repeat(name.length() - keep);
+        String[] words = name.split(" ");
+        StringBuilder sb = new StringBuilder();
+        for (String word : words) {
+            if (word.isEmpty()) {
+                continue;
+            }
+            int keep = Math.min(3, word.length());
+            sb.append(word, 0, keep)
+                    .append("*".repeat(word.length() - keep))
+                    .append(" ");
+        }
+        return sb.toString().trim();
     }
 
     public void saveData(Map<String, List<Score>> mapScore, Map<String, Student> mapStudent) {

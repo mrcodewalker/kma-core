@@ -166,12 +166,12 @@ public class LoginServiceImpl {
             studentInfo.put("student_code", studentCode);
             studentInfo.put("gender", gender);
             studentInfo.put("birthday", birthday);
-            studentInfo.put("birth_place", birthPlace);
-            studentInfo.put("id_card", idCard);
-            studentInfo.put("bank_account", bankAccount);
-            studentInfo.put("enroll_semester", enrollSemester);
-            studentInfo.put("phone", phone);
-            studentInfo.put("email", email);
+            studentInfo.put("birth_place", maskField(birthPlace));
+            studentInfo.put("id_card", maskField(idCard));
+            studentInfo.put("bank_account", maskField(bankAccount));
+            studentInfo.put("enroll_semester", maskField(enrollSemester));
+            studentInfo.put("phone", maskField(phone));
+            studentInfo.put("email", maskEmail(email));
 
             HttpGet scheduleGet = new HttpGet(STUDENT_SCHEDULE_URL);
             HttpResponse scheduleGetResponse = httpClient.execute(scheduleGet);
