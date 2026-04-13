@@ -24,4 +24,6 @@ public interface StudentService {
     List<StudentDTO> getStudentsByName(String studentName);
 
     Student updateStudentInfo(Student student);
+
+    Student findByStudentCode(String studentCode);
 }
