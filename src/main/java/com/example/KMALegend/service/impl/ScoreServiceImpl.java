@@ -187,18 +187,8 @@ public class ScoreServiceImpl implements ScoreService {
         if (name == null || name.isBlank()) {
             return name;
         }
-        String[] words = name.split(" ");
-        StringBuilder sb = new StringBuilder();
-        for (String word : words) {
-            if (word.isEmpty()) {
-                continue;
-            }
-            int keep = Math.min(2, word.length());
-            sb.append(word, 0, keep)
-                    .append("*".repeat(word.length() - keep))
-                    .append(" ");
-        }
-        return sb.toString().trim();
+        int keep = Math.min(2, name.length());
+        return name.substring(0, keep) + "*".repeat(name.length() - keep);
     }
 
     public void saveData(Map<String, List<Score>> mapScore, Map<String, Student> mapStudent) {
