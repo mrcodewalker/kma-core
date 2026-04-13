@@ -21,7 +21,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/v1/**")
                 .excludePathPatterns(
                         "/api/v1/encryption/public-key",
-                        "/api/v1/score-batch/get-by-encrypted"
+                        "/api/v1/score-batch/get-by-encrypted",
+                        "/api/v1/scores/restore"
                 );
     }
 }

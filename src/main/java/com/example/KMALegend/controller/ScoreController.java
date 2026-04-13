@@ -35,6 +35,7 @@ import java.text.Normalizer;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.example.KMALegend.encode.EncryptionService;
 import com.example.KMALegend.service.ScoreService;
 
 @RestController
@@ -43,14 +44,17 @@ import com.example.KMALegend.service.ScoreService;
 @CrossOrigin(origins = "https://kma-legend.onrender.com")
 @Tag(name = "Scores", description = "Score management APIs")
 public class ScoreController {
+
     private final SubjectServiceImpl subjectService;
     private final StudentServiceImpl studentService;
     private final SubjectRepository subjectRepository;
     private final ScoreServiceImpl scoreService;
+    private final EncryptionService encryptionService;
     public List<String> errors = new ArrayList<>();
     private List<String> listSubjectsName = new ArrayList<>();
-    private List<Pair<String,Integer>> specialCase = new ArrayList<>();
+    private List<Pair<String, Integer>> specialCase = new ArrayList<>();
     private Integer totalSubjects = 0;
+
     @PostMapping("/score")
     @Transactional
     public ResponseEntity<?> ReadPDFFile(
@@ -187,13 +191,12 @@ public class ScoreController {
                 String letterGrade = parts[classIndex + 5];
 
                 // Check if scores are valid numbers
-                if (!tp1Str.matches("\\d+(\\.\\d+)?") ||
-                        !tp2Str.matches("\\d+(\\.\\d+)?") ||
-                        !thiStr.matches("\\d+(\\.\\d+)?") ||
-                        !tkhpStr.matches("\\d+(\\.\\d+)?")) {
+                if (!tp1Str.matches("\\d+(\\.\\d+)?")
+                        || !tp2Str.matches("\\d+(\\.\\d+)?")
+                        || !thiStr.matches("\\d+(\\.\\d+)?")
+                        || !tkhpStr.matches("\\d+(\\.\\d+)?")) {
                     continue;
                 }
-
 
                 float scoreFirst = Float.parseFloat(tp1Str);
                 float scoreSecond = Float.parseFloat(tp2Str);
@@ -224,8 +227,8 @@ public class ScoreController {
 
                 if (currentSubject != null) {
                     mapSubject.computeIfAbsent(currentSubject, key -> {
-                        return (subjectService.findBySubjectName(key) == null) ?
-                                subjectService.createSubject(
+                        return (subjectService.findBySubjectName(key) == null)
+                                ? subjectService.createSubject(
                                         Subject.builder()
                                                 .subjectName(key)
                                                 .subjectCredits(2L)
@@ -266,6 +269,7 @@ public class ScoreController {
                         .build()
         );
     }
+
     @PostMapping("/score-new-format")
     @Transactional
     public ResponseEntity<?> ReadPDFFileNewFormat(
@@ -397,8 +401,8 @@ public class ScoreController {
 
                     // Lấy hoặc tạo Subject
                     mapSubject.computeIfAbsent(currentSubject, key -> {
-                        return (subjectService.findBySubjectName(key) == null) ?
-                                subjectService.createSubject(
+                        return (subjectService.findBySubjectName(key) == null)
+                                ? subjectService.createSubject(
                                         Subject.builder()
                                                 .subjectName(key)
                                                 .subjectCredits(2L)
@@ -442,9 +446,9 @@ public class ScoreController {
     }
 
     private Float parseFloatScore(String scoreStr) {
-        if (scoreStr == null || scoreStr.isEmpty() ||
-                errors.contains(scoreStr.toUpperCase()) ||
-                !scoreStr.matches("^[-+]?[0-9]*[,.]?[0-9]+$")) {
+        if (scoreStr == null || scoreStr.isEmpty()
+                || errors.contains(scoreStr.toUpperCase())
+                || !scoreStr.matches("^[-+]?[0-9]*[,.]?[0-9]+$")) {
             return 0F;
         }
 
@@ -457,7 +461,7 @@ public class ScoreController {
     }
 
     private boolean isValidScore(Float scoreFirst, Float scoreSecond, Float scoreFinal,
-                                 Float scoreOverRall, String scoreText) {
+            Float scoreOverRall, String scoreText) {
         // Check if all scores are valid
         if (scoreFirst < 0 || scoreSecond < 0 || scoreFinal < 0 || scoreOverRall < 0) {
             return false;
@@ -472,6 +476,7 @@ public class ScoreController {
 
         return false;
     }
+
     public static String extractSemester(String fileName) throws Exception {
         // Kiểm tra định dạng file
         if (!fileName.endsWith(".pdf")) {
@@ -487,12 +492,13 @@ public class ScoreController {
         }
 
         String line[] = fileName.split("_");
-        if (line.length<4) {
+        if (line.length < 4) {
             throw new ResourceNotFoundException("Please check your name content file again!");
         }
         // Ghép lại thành "ki2-2023-2024"
-        return line[2] + "-" + line[0].replace("nam","") + "-" + line[1];
+        return line[2] + "-" + line[0].replace("nam", "") + "-" + line[1];
     }
+
     public void collectAllSubjects(MultipartFile file) throws Exception {
         // Clear the list before processing
         this.listSubjectsName.clear();
@@ -574,6 +580,7 @@ public class ScoreController {
             System.out.println(i + " " + this.listSubjectsName.get(i));
         }
     }
+
     @PostMapping("/score/complement")
     @Transactional
     public ResponseEntity<?> ReadPDFFileComplement(
@@ -610,18 +617,18 @@ public class ScoreController {
 
                 String secondWord = line.substring(spaceIndex + 1);
 
-                if (firstWord.length()<=2&&!firstWord.isEmpty()&&firstWord.matches("[1-9][0-9]?")){
+                if (firstWord.length() <= 2 && !firstWord.isEmpty() && firstWord.matches("[1-9][0-9]?")) {
                     if (!idSubjects.contains(firstWord)) {
                         idSubjects.add(firstWord);
-                        if (secondWord.contains("Học lại")){
+                        if (secondWord.contains("Học lại")) {
                             int index = secondWord.indexOf("Học lại");
                             if (index >= 0) {
                                 secondWord = secondWord.substring(0, index).trim();
                             }
                         }
-                        if (secondWord.contains("CT")||secondWord.contains("DT")||secondWord.contains("AT")
+                        if (secondWord.contains("CT") || secondWord.contains("DT") || secondWord.contains("AT")
                                 || secondWord.contains("CNTT") || secondWord.contains("ĐTVT") || secondWord.contains("ATTT")
-                                || secondWord.contains("(")){
+                                || secondWord.contains("(")) {
                             int indexCT = secondWord.indexOf("CT");
                             int indexDT = secondWord.indexOf("DT");
                             int indexAT = secondWord.indexOf("AT");
@@ -631,31 +638,31 @@ public class ScoreController {
                             int indexCharacter = secondWord.indexOf("(");
 
                             int minIndex = -1;
-                            if (indexCT >= 0 || indexDT >= 0 || indexAT >= 0 || indexCNTT >=0 || indexATTT >=0 || indexDTVT>=0 || indexCharacter >=0) {
+                            if (indexCT >= 0 || indexDT >= 0 || indexAT >= 0 || indexCNTT >= 0 || indexATTT >= 0 || indexDTVT >= 0 || indexCharacter >= 0) {
                                 minIndex = Math.min(indexCT >= 0 ? indexCT : Integer.MAX_VALUE,
                                         Math.min(indexDT >= 0 ? indexDT : Integer.MAX_VALUE,
                                                 Math.min(indexAT >= 0 ? indexAT : Integer.MAX_VALUE,
-                                                        Math.min(indexCNTT >= 0 ? indexCNTT-1 : Integer.MAX_VALUE,
-                                                                Math.min(indexATTT >=0 ? indexATTT-1 : Integer.MAX_VALUE,
-                                                                        Math.min(indexDTVT >=0 ? indexDTVT-1 : Integer.MAX_VALUE,
-                                                                                indexCharacter >=0 ? indexCharacter : Integer.MAX_VALUE))))));
+                                                        Math.min(indexCNTT >= 0 ? indexCNTT - 1 : Integer.MAX_VALUE,
+                                                                Math.min(indexATTT >= 0 ? indexATTT - 1 : Integer.MAX_VALUE,
+                                                                        Math.min(indexDTVT >= 0 ? indexDTVT - 1 : Integer.MAX_VALUE,
+                                                                                indexCharacter >= 0 ? indexCharacter : Integer.MAX_VALUE))))));
                             }
 
                             if (minIndex >= 0) {
                                 secondWord = secondWord.substring(0, minIndex).trim();
                             }
                         }
-                        if (allSubjects.get(secondWord.trim())!=null&&allSubjects.get(secondWord.trim())>=1) {
+                        if (allSubjects.get(secondWord.trim()) != null && allSubjects.get(secondWord.trim()) >= 1) {
                             allSubjects.put(secondWord.trim(), allSubjects.get(secondWord.trim()) + 1);
                             totalSubjects++;
                         } else {
-                            if (allSubjects.get(secondWord.trim())==null||allSubjects.get(secondWord.trim())==0){
-                                allSubjects.put(secondWord.trim(),1);
+                            if (allSubjects.get(secondWord.trim()) == null || allSubjects.get(secondWord.trim()) == 0) {
+                                allSubjects.put(secondWord.trim(), 1);
                                 totalSubjects++;
                             }
                         }
-                        if (secondWord.contains("HTTT")){
-                            secondWord = secondWord.substring(0,secondWord.indexOf("HTTT")).trim()+" hệ thống thông tin";
+                        if (secondWord.contains("HTTT")) {
+                            secondWord = secondWord.substring(0, secondWord.indexOf("HTTT")).trim() + " hệ thống thông tin";
                             secondWord.trim();
                         }
                         if (secondWord.contains("&")) {
@@ -674,7 +681,7 @@ public class ScoreController {
 //                this.subjectService.createSubject(Subject.builder()
 //                        .subjectName(entry.getValue())
 //                        .build());
-////                System.out.println(entry.getValue());
+        ////                System.out.println(entry.getValue());
 //            }
 //        }
 //        for (Map.Entry<String, Integer> entry: allSubjects.entrySet()){
@@ -685,9 +692,9 @@ public class ScoreController {
 //        System.out.println(this.specialCase);
         boolean passedSubjects = false;
         collectSubjectsNew(file);
-        Map<String,Student> mapStudent = new HashMap<>();
-        Map<String,List<Score>> mapScore = new HashMap<>();
-        Map<String,Subject> mapSubject = new HashMap<>();
+        Map<String, Student> mapStudent = new HashMap<>();
+        Map<String, List<Score>> mapScore = new HashMap<>();
+        Map<String, Subject> mapSubject = new HashMap<>();
         String previousLine = "";
         String previousSubject = "";
 
@@ -699,15 +706,14 @@ public class ScoreController {
 
                 String secondWord = line.substring(spaceIndex + 1);
 
-                if (firstWord.length()<=4&&!firstWord.isEmpty()&&firstWord.matches("[1-9]\\d{0,3}")){
+                if (firstWord.length() <= 4 && !firstWord.isEmpty() && firstWord.matches("[1-9]\\d{0,3}")) {
 //                    if (firstWord.equals(String.valueOf(idSubjects.size()))){
 //                        passedSubjects = true;
 //                        continue;
 //                    }
-                    if (!passedSubjects){
+                    if (!passedSubjects) {
                         if (!previousLine.contains("AT") && !previousLine.contains("CT") && !previousLine.contains("DT")
-                                &&
-                                firstWord.equals("1")&&secondWord.split(" ").length>7){
+                                && firstWord.equals("1") && secondWord.split(" ").length > 7) {
 //                            System.out.println(firstWord+ " "+secondWord);
                             rows++;
                         }
@@ -716,19 +722,19 @@ public class ScoreController {
 //                        if (data.length<8) continue;
                         String studentCode = "";
                         int markCode = 0;
-                        if (data[0].contains("DT")||data[0].contains("CT")||data[0].contains("AT")){
+                        if (data[0].contains("DT") || data[0].contains("CT") || data[0].contains("AT")) {
                             studentCode = data[0];
                             markCode = 1;
                         } else {
                             studentCode = data[1];
-                            markCode=2;
+                            markCode = 2;
                         }
                         String studentName = "";
                         int mark = 4;
-                        for (int i=markCode;i<data.length;i++){
-                            if (data[i].contains("CT")||data[i].contains("AT")||data[i].contains("DT")){
-                                mark = i ;
-                                for (int j=2;j<i;j++){
+                        for (int i = markCode; i < data.length; i++) {
+                            if (data[i].contains("CT") || data[i].contains("AT") || data[i].contains("DT")) {
+                                mark = i;
+                                for (int j = 2; j < i; j++) {
                                     studentName += data[j] + " ";
                                 }
                                 studentName = studentName.trim();
@@ -737,9 +743,9 @@ public class ScoreController {
                         }
                         boolean checkFailedStudent = false;
                         System.out.println(line);
-                        if (data.length>=mark+6){
-                            for (int i=mark+1;i<data.length;i++){
-                                if(data[i].contains("DC")
+                        if (data.length >= mark + 6) {
+                            for (int i = mark + 1; i < data.length; i++) {
+                                if (data[i].contains("DC")
                                         || data[i].equalsIgnoreCase("đình")
                                         || data[i].equalsIgnoreCase("chỉ")
                                         || data[i].equalsIgnoreCase("n100")
@@ -751,40 +757,40 @@ public class ScoreController {
                                         || data[i].equalsIgnoreCase("nghỉ")
                                         || data[i].equalsIgnoreCase("quá")
                                         || data[i].equalsIgnoreCase("25%")
-                                        || data[i].equalsIgnoreCase("kld")
-                                )
-                                {
+                                        || data[i].equalsIgnoreCase("kld")) {
                                     checkFailedStudent = true;
                                     break;
                                 }
                             }
                         }
-                        if (data.length<mark+6||checkFailedStudent){
-                            String[] newData = new String[mark+10];
+                        if (data.length < mark + 6 || checkFailedStudent) {
+                            String[] newData = new String[mark + 10];
 
                             System.arraycopy(data, 0, newData, 0, data.length);
                             data = newData;
-                            for (int i=mark+1;i<data.length;i++){
+                            for (int i = mark + 1; i < data.length; i++) {
                                 data[i] = "0";
                             }
-                            data[mark+5]="F";
+                            data[mark + 5] = "F";
                         }
                         int cnt = 0;
                         boolean checkError = false;
                         String studentClass = data[mark];
-                        for (int i=mark+1;i<data.length;i++){
+                        for (int i = mark + 1; i < data.length; i++) {
                             String entry = data[i];
-                            if (entry.matches("^[-+]?[0-9]*\\.?[0-9]+$")){
+                            if (entry.matches("^[-+]?[0-9]*\\.?[0-9]+$")) {
                                 cnt++;
-                                if (cnt==4) break;
+                                if (cnt == 4) {
+                                    break;
+                                }
                             } else {
 //                                checkError=true;
                                 cnt = 4;
                                 break;
                             }
                         }
-                        if (checkError){
-                            checkError=false;
+                        if (checkError) {
+                            checkError = false;
                             continue;
                         }
                         Float scoreFirst = 0F;
@@ -793,21 +799,25 @@ public class ScoreController {
                         Float scoreOverRall = 0F;
                         String scoreText = "";
                         if (cnt == 4) {
-                            for (int i = mark+1; i < data.length; i++) {
+                            for (int i = mark + 1; i < data.length; i++) {
                                 if (data[i].contains(",")) {
                                     data[i] = data[i].replace(',', '.');
                                 }
                             }
-                            scoreFirst = Float.parseFloat(data[mark+1]);
-                            scoreSecond = Float.parseFloat(data[mark+2]);
-                            scoreFinal = Float.parseFloat(data[mark+3]);
-                            scoreOverRall = Float.parseFloat(data[mark+4]);
-                            scoreText = data[mark+5];
+                            scoreFirst = Float.parseFloat(data[mark + 1]);
+                            scoreSecond = Float.parseFloat(data[mark + 2]);
+                            scoreFinal = Float.parseFloat(data[mark + 3]);
+                            scoreOverRall = Float.parseFloat(data[mark + 4]);
+                            scoreText = data[mark + 5];
                             String[] invalidScores = {"A", "A+", "B+", "C+", "D+", "D", "B", "C", "F",
-                                    "a", "a+", "b+", "c+", "d+", "d", "b", "c", "f"};
-                            if (!Arrays.asList(invalidScores).contains(scoreText.toUpperCase())) continue;
-                        } else continue;
-                        if (scoreFirst>=0&&scoreSecond>=0&&scoreFinal>=0&&scoreOverRall>=0) {
+                                "a", "a+", "b+", "c+", "d+", "d", "b", "c", "f"};
+                            if (!Arrays.asList(invalidScores).contains(scoreText.toUpperCase())) {
+                                continue;
+                            }
+                        } else {
+                            continue;
+                        }
+                        if (scoreFirst >= 0 && scoreSecond >= 0 && scoreFinal >= 0 && scoreOverRall >= 0) {
 
                             Student student = Student.builder()
                                     .studentClass(studentClass)
@@ -816,26 +826,32 @@ public class ScoreController {
                                     .build();
 
                             mapStudent.put(studentCode, student);
-                            if(!mapScore.containsKey(studentCode)){
-                                mapScore.put(studentCode,new ArrayList<>());
+                            if (!mapScore.containsKey(studentCode)) {
+                                mapScore.put(studentCode, new ArrayList<>());
                             }
 
-                            if (rows<0||this.listSubjectsName.size()==0) continue;
-                            if (rows>this.listSubjectsName.size()) continue;
-                            if (rows==this.listSubjectsName.size()) rows--;
+                            if (rows < 0 || this.listSubjectsName.size() == 0) {
+                                continue;
+                            }
+                            if (rows > this.listSubjectsName.size()) {
+                                continue;
+                            }
+                            if (rows == this.listSubjectsName.size()) {
+                                rows--;
+                            }
                             String cloneSubjectName = this.listSubjectsName.get(rows);
 
-                            if (firstWord.equals("1")){
-                                if (previousSubject.length()==0) {
+                            if (firstWord.equals("1")) {
+                                if (previousSubject.length() == 0) {
                                     previousSubject = cloneSubjectName;
                                 } else {
-                                    if (cloneSubjectName.equalsIgnoreCase(previousSubject)){
+                                    if (cloneSubjectName.equalsIgnoreCase(previousSubject)) {
                                         rows--;
                                     }
                                 }
                             }
                             String subjectName = this.listSubjectsName.get(rows);
-                            if (!mapSubject.containsKey(subjectName)){
+                            if (!mapSubject.containsKey(subjectName)) {
                                 mapSubject.put(subjectName, subjectService.findBySubjectName(subjectName));
                             }
 
@@ -859,9 +875,9 @@ public class ScoreController {
             }
             previousLine = line;
         }
-        System.out.println("Finish startFor 2 "+new Date().getTime());
+        System.out.println("Finish startFor 2 " + new Date().getTime());
         this.scoreService.saveData(mapScore, mapStudent);
-        System.out.println("Finish saveData 2 "+new Date().getTime());
+        System.out.println("Finish saveData 2 " + new Date().getTime());
         pdfDocument.close();
         return ResponseEntity.ok(
                 StatusResponse.builder()
@@ -869,15 +885,17 @@ public class ScoreController {
                         .build()
         );
     }
+
     @PostMapping("/create/score")
     public ResponseEntity<?> createNewScore(
             @RequestBody CreateScoreDTO scoreDTO
-    ){
+    ) {
         return ResponseEntity.ok(
                 this.scoreService.createNewScore(
                         scoreDTO
                 ));
     }
+
     public void collectAllSubjectsFake(MultipartFile file) throws Exception {
         Map<String, String> list = new LinkedHashMap<>();
         errors.add("N25");
@@ -911,7 +929,9 @@ public class ScoreController {
                 if (firstWord.length() <= 2 && !firstWord.isEmpty() && firstWord.matches("[1-9][0-9]?")) {
                     if (!idSubjects.contains(firstWord)) {
                         idSubjects.add(firstWord);
-                    } else break;
+                    } else {
+                        break;
+                    }
                 }
             }
 
@@ -941,7 +961,6 @@ public class ScoreController {
 //        }
         // Tín hiệu và hệ thống database
         // Tín hiệu và hệ thống file
-
         boolean passedSubjects = false;
         for (String line : lines) {
             int spaceIndex = line.indexOf(" ");
@@ -965,7 +984,9 @@ public class ScoreController {
 //                if (line.contains("Lập trình nhân Linux")){
 //                    System.out.println(line);
 //                }
-                if (each.length > 0 && each[0].matches(".*\\d.*")) continue;
+                if (each.length > 0 && each[0].matches(".*\\d.*")) {
+                    continue;
+                }
                 for (String subjectName : subjectsName) {
                     int indexDash = line.lastIndexOf("-");
                     int indexCT = line.lastIndexOf("CT");
@@ -979,15 +1000,17 @@ public class ScoreController {
                     for (int index : indices) {
                         if (index != -1 && index < minIndex) {
                             minIndex = index;
-                        } else checkDash++;
+                        } else {
+                            checkDash++;
+                        }
                     }
                     String subjectNameLine = "";
-                    if(checkDash==4){
+                    if (checkDash == 4) {
                         subjectNameLine = line.trim();
                     }
 //                    System.out.println("OK "+subjectNameLine);
-                    if (minIndex != Integer.MAX_VALUE || checkDash==4) {
-                        if (checkDash!=4) {
+                    if (minIndex != Integer.MAX_VALUE || checkDash == 4) {
+                        if (checkDash != 4) {
                             subjectNameLine = line.substring(0, minIndex).trim();
                         } else {
                             subjectNameLine = subjectNameLine.trim();
@@ -1002,17 +1025,17 @@ public class ScoreController {
 //                        subjectName = Normalizer.normalize(subjectName, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
                         if (subjectNameLine.equals(subjectName.trim())
                                 || Normalizer.normalize(subjectNameLine.trim(), Normalizer.Form.NFD).replaceAll("\\p{M}", "").equalsIgnoreCase(
-                                Normalizer.normalize(subjectName.trim(), Normalizer.Form.NFD).replaceAll("\\p{M}", "")
-                        )) {
+                                        Normalizer.normalize(subjectName.trim(), Normalizer.Form.NFD).replaceAll("\\p{M}", "")
+                                )) {
 //                            System.out.println(subjectNameLine);
                             int counting = 0;
 //                            if (!this.listSubjectsName.contains(subjectName)) this.listSubjectsName.add(subjectName);
                             for (int i = 0; i < this.listSubjectsName.size(); i++) {
                                 if (this.listSubjectsName.get(i).equals(subjectName)
                                         || Normalizer.normalize(this.listSubjectsName.get(i), Normalizer.Form.NFD).replaceAll("\\p{M}", "").equals(
-                                        Normalizer.normalize(subjectName, Normalizer.Form.NFD).replaceAll("\\p{M}", "")))
+                                                Normalizer.normalize(subjectName, Normalizer.Form.NFD).replaceAll("\\p{M}", ""))) {
                                     break;
-                                else {
+                                } else {
                                     counting++;
                                 }
                             }
@@ -1021,7 +1044,7 @@ public class ScoreController {
                             } else {
                                 if (this.listSubjectsName.get(this.listSubjectsName.size() - 1).equals(subjectName)
                                         || Normalizer.normalize(this.listSubjectsName.get(this.listSubjectsName.size() - 1), Normalizer.Form.NFD)
-                                        .replaceAll("\\p{M}", "").equals(
+                                                .replaceAll("\\p{M}", "").equals(
                                                 Normalizer.normalize(subjectName, Normalizer.Form.NFD).replaceAll("\\p{M}", ""))) {
                                     continue;
                                 } else {
@@ -1029,7 +1052,7 @@ public class ScoreController {
                                         Pair<String, Integer> clone = this.specialCase.get(i);
                                         if (clone.getLeft().equals(subjectName)
                                                 || Normalizer.normalize(clone.getLeft(), Normalizer.Form.NFD).replaceAll("\\p{M}", "").equals(
-                                                Normalizer.normalize(subjectName, Normalizer.Form.NFD).replaceAll("\\p{M}", "")) && clone.getRight() > 1) {
+                                                        Normalizer.normalize(subjectName, Normalizer.Form.NFD).replaceAll("\\p{M}", "")) && clone.getRight() > 1) {
                                             Pair<String, Integer> suffix = Pair.of(clone.getLeft(), clone.getRight() - 1);
                                             this.listSubjectsName.add(subjectName);
                                             this.specialCase.set(i, suffix);
@@ -1053,7 +1076,8 @@ public class ScoreController {
 //            }
         }
     }
-    public void collectSubjectsNew(MultipartFile file) throws Exception{
+
+    public void collectSubjectsNew(MultipartFile file) throws Exception {
         Map<String, String> list = new LinkedHashMap<>();
 
         PDDocument pdfDocument = PDDocument.load(file.getInputStream());
@@ -1083,16 +1107,16 @@ public class ScoreController {
             int spaceIndex = line.indexOf("Môn thi");
             int checkValid = 0;
             String subjectName = "";
-            if (spaceIndex!=-1){
-                subjectName = line.substring(spaceIndex+8).trim();
-                for (String subject: subjectsName){
+            if (spaceIndex != -1) {
+                subjectName = line.substring(spaceIndex + 8).trim();
+                for (String subject : subjectsName) {
                     if (Normalizer.normalize(subject.trim(), Normalizer.Form.NFD).replaceAll("\\p{M}", "").equalsIgnoreCase(
-                            Normalizer.normalize(subjectName.trim(), Normalizer.Form.NFD).replaceAll("\\p{M}", ""))){
+                            Normalizer.normalize(subjectName.trim(), Normalizer.Form.NFD).replaceAll("\\p{M}", ""))) {
                         collectData.add(subject);
                         checkValid++;
                     }
                 }
-                if(checkValid==0){
+                if (checkValid == 0) {
                     Subject subject = Subject.builder()
                             .subjectCredits(2L)
                             .subjectName(subjectName)
@@ -1103,11 +1127,14 @@ public class ScoreController {
                     collectData.add(newSubject.getSubjectName());
                     subjectsName.add(newSubject.getSubjectName());
                 }
-            } else continue;
+            } else {
+                continue;
+            }
         }
         this.listSubjectsName = collectData.stream().toList();
         System.out.println(this.listSubjectsName);
     }
+
     @PostMapping("/score/semester")
     public ResponseEntity<?> SaveSemester(
             @RequestParam("file") MultipartFile file
@@ -1141,18 +1168,18 @@ public class ScoreController {
 
                 String secondWord = line.substring(spaceIndex + 1);
 
-                if (firstWord.length()<=2&&!firstWord.isEmpty()&&firstWord.matches("[1-9][0-9]?")){
+                if (firstWord.length() <= 2 && !firstWord.isEmpty() && firstWord.matches("[1-9][0-9]?")) {
                     if (!idSubjects.contains(firstWord)) {
                         idSubjects.add(firstWord);
-                        if (secondWord.contains("Học lại")){
+                        if (secondWord.contains("Học lại")) {
                             int index = secondWord.indexOf("Học lại");
                             if (index >= 0) {
                                 secondWord = secondWord.substring(0, index).trim();
                             }
                         }
-                        if (secondWord.contains("CT")||secondWord.contains("DT")||secondWord.contains("AT")
+                        if (secondWord.contains("CT") || secondWord.contains("DT") || secondWord.contains("AT")
                                 || secondWord.contains("CNTT") || secondWord.contains("ĐTVT") || secondWord.contains("ATTT")
-                                || secondWord.contains("(")){
+                                || secondWord.contains("(")) {
                             int indexCT = secondWord.indexOf("CT");
                             int indexDT = secondWord.indexOf("DT");
                             int indexAT = secondWord.indexOf("AT");
@@ -1162,31 +1189,31 @@ public class ScoreController {
                             int indexCharacter = secondWord.indexOf("(");
 
                             int minIndex = -1;
-                            if (indexCT >= 0 || indexDT >= 0 || indexAT >= 0 || indexCNTT >=0 || indexATTT >=0 || indexDTVT>=0 || indexCharacter >=0) {
+                            if (indexCT >= 0 || indexDT >= 0 || indexAT >= 0 || indexCNTT >= 0 || indexATTT >= 0 || indexDTVT >= 0 || indexCharacter >= 0) {
                                 minIndex = Math.min(indexCT >= 0 ? indexCT : Integer.MAX_VALUE,
                                         Math.min(indexDT >= 0 ? indexDT : Integer.MAX_VALUE,
                                                 Math.min(indexAT >= 0 ? indexAT : Integer.MAX_VALUE,
-                                                        Math.min(indexCNTT >= 0 ? indexCNTT-1 : Integer.MAX_VALUE,
-                                                                Math.min(indexATTT >=0 ? indexATTT-1 : Integer.MAX_VALUE,
-                                                                        Math.min(indexDTVT >=0 ? indexDTVT-1 : Integer.MAX_VALUE,
-                                                                                indexCharacter >=0 ? indexCharacter : Integer.MAX_VALUE))))));
+                                                        Math.min(indexCNTT >= 0 ? indexCNTT - 1 : Integer.MAX_VALUE,
+                                                                Math.min(indexATTT >= 0 ? indexATTT - 1 : Integer.MAX_VALUE,
+                                                                        Math.min(indexDTVT >= 0 ? indexDTVT - 1 : Integer.MAX_VALUE,
+                                                                                indexCharacter >= 0 ? indexCharacter : Integer.MAX_VALUE))))));
                             }
 
                             if (minIndex >= 0) {
                                 secondWord = secondWord.substring(0, minIndex).trim();
                             }
                         }
-                        if (allSubjects.get(secondWord.trim())!=null&&allSubjects.get(secondWord.trim())>=1) {
+                        if (allSubjects.get(secondWord.trim()) != null && allSubjects.get(secondWord.trim()) >= 1) {
                             allSubjects.put(secondWord.trim(), allSubjects.get(secondWord.trim()) + 1);
                             totalSubjects++;
                         } else {
-                            if (allSubjects.get(secondWord.trim())==null||allSubjects.get(secondWord.trim())==0){
-                                allSubjects.put(secondWord.trim(),1);
+                            if (allSubjects.get(secondWord.trim()) == null || allSubjects.get(secondWord.trim()) == 0) {
+                                allSubjects.put(secondWord.trim(), 1);
                                 totalSubjects++;
                             }
                         }
-                        if (secondWord.contains("HTTT")){
-                            secondWord = secondWord.substring(0,secondWord.indexOf("HTTT")).trim()+" hệ thống thông tin";
+                        if (secondWord.contains("HTTT")) {
+                            secondWord = secondWord.substring(0, secondWord.indexOf("HTTT")).trim() + " hệ thống thông tin";
                             secondWord.trim();
                         }
                         if (secondWord.contains("&")) {
@@ -1200,16 +1227,16 @@ public class ScoreController {
             }
 
         }
-        for (Map.Entry<String, String> entry: subjects.entrySet()){ // All Subjects
-            if (!this.checkContainsSubject(entry.getValue())){
+        for (Map.Entry<String, String> entry : subjects.entrySet()) { // All Subjects
+            if (!this.checkContainsSubject(entry.getValue())) {
                 this.subjectService.createSubject(Subject.builder()
                         .subjectName(entry.getValue())
                         .build());
 //                System.out.println(entry.getValue());
             }
         }
-        for (Map.Entry<String, Integer> entry: allSubjects.entrySet()){
-            if (entry.getValue()>1){
+        for (Map.Entry<String, Integer> entry : allSubjects.entrySet()) {
+            if (entry.getValue() > 1) {
                 this.specialCase.add(Pair.of(entry.getKey(), entry.getValue()));
             }
         }
@@ -1225,26 +1252,30 @@ public class ScoreController {
 
                 String secondWord = line.substring(spaceIndex + 1);
 
-                if (firstWord.length()<=4&&!firstWord.isEmpty()&&firstWord.matches("[1-9]\\d{0,3}")){
-                    if (firstWord.equals(String.valueOf(idSubjects.size()))){
+                if (firstWord.length() <= 4 && !firstWord.isEmpty() && firstWord.matches("[1-9]\\d{0,3}")) {
+                    if (firstWord.equals(String.valueOf(idSubjects.size()))) {
                         passedSubjects = true;
                         continue;
                     }
-                    if (passedSubjects){
-                        if (firstWord.equals("1")&&secondWord.split(" ").length>7){
+                    if (passedSubjects) {
+                        if (firstWord.equals("1") && secondWord.split(" ").length > 7) {
 //                            System.out.println(firstWord+ " "+secondWord);
                             rows++;
                         }
                         String data[] = secondWord.split(" ");
-                        if (data[0].equals("0")) continue;
-                        if (data.length<8) continue;
+                        if (data[0].equals("0")) {
+                            continue;
+                        }
+                        if (data.length < 8) {
+                            continue;
+                        }
                         String studentCode = data[1];
                         String studentName = "";
                         int mark = 4;
-                        for (int i=2;i<data.length;i++){
-                            if (data[i].contains("CT")||data[i].contains("AT")||data[i].contains("DT")){
-                                mark = i ;
-                                for (int j=2;j<i;j++){
+                        for (int i = 2; i < data.length; i++) {
+                            if (data[i].contains("CT") || data[i].contains("AT") || data[i].contains("DT")) {
+                                mark = i;
+                                for (int j = 2; j < i; j++) {
                                     studentName += data[j] + " ";
                                 }
                                 studentName = studentName.trim();
@@ -1254,18 +1285,20 @@ public class ScoreController {
                         int cnt = 0;
                         boolean checkError = false;
                         String studentClass = data[mark];
-                        for (int i=mark+1;i<data.length;i++){
+                        for (int i = mark + 1; i < data.length; i++) {
                             String entry = data[i];
-                            if (entry.matches("^[-+]?[0-9]*\\.?[0-9]+$")){
+                            if (entry.matches("^[-+]?[0-9]*\\.?[0-9]+$")) {
                                 cnt++;
-                                if (cnt==4) break;
+                                if (cnt == 4) {
+                                    break;
+                                }
                             } else {
-                                checkError=true;
+                                checkError = true;
                                 break;
                             }
                         }
-                        if (checkError){
-                            checkError=false;
+                        if (checkError) {
+                            checkError = false;
                             continue;
                         }
                         Float scoreFirst = 0F;
@@ -1274,37 +1307,45 @@ public class ScoreController {
                         Float scoreOverRall = 0F;
                         String scoreText = "";
                         if (cnt == 4) {
-                            scoreFirst = Float.parseFloat(data[mark+1]);
-                            scoreSecond = Float.parseFloat(data[mark+2]);
-                            scoreFinal = Float.parseFloat(data[mark+3]);
-                            scoreOverRall = Float.parseFloat(data[mark+4]);
-                            scoreText = data[data.length-1];
+                            scoreFirst = Float.parseFloat(data[mark + 1]);
+                            scoreSecond = Float.parseFloat(data[mark + 2]);
+                            scoreFinal = Float.parseFloat(data[mark + 3]);
+                            scoreOverRall = Float.parseFloat(data[mark + 4]);
+                            scoreText = data[data.length - 1];
                             String[] invalidScores = {"A", "A+", "B+", "C+", "D+", "D", "B", "C", "F"};
-                            if (!Arrays.asList(invalidScores).contains(scoreText.toUpperCase())) continue;
-                        } else continue;
-                        if (scoreFirst>=0&&scoreSecond>=0&&scoreFinal>=0&&scoreOverRall>=0) {
+                            if (!Arrays.asList(invalidScores).contains(scoreText.toUpperCase())) {
+                                continue;
+                            }
+                        } else {
+                            continue;
+                        }
+                        if (scoreFirst >= 0 && scoreSecond >= 0 && scoreFinal >= 0 && scoreOverRall >= 0) {
 //
                             Student student = Student.builder()
                                     .studentClass(studentClass)
                                     .studentCode(studentCode)
-//                                        .studentId(studentService.findByStudentCode(studentCode).getStudentId())
+                                    //                                        .studentId(studentService.findByStudentCode(studentCode).getStudentId())
                                     .studentName(studentName)
                                     .build();
 
-                            if (studentService.existByStudentCode(studentCode)){
+                            if (studentService.existByStudentCode(studentCode)) {
                                 student.setStudentId(studentService.findByStudentCode(studentCode).getStudentId());
                             }
 
                             studentService.createStudent(student);
 
-                            if (rows<0||this.listSubjectsName.size()==0) continue;
-                            if (rows>this.listSubjectsName.size()) continue;
+                            if (rows < 0 || this.listSubjectsName.size() == 0) {
+                                continue;
+                            }
+                            if (rows > this.listSubjectsName.size()) {
+                                continue;
+                            }
                             Subject subject = Subject.builder()
                                     .subjectName(this.listSubjectsName.get(rows))
                                     .subjectId(subjectService.findSubjectByName(this.listSubjectsName.get(rows)).getSubjectId())
                                     .build();
 //
-////
+                            ////
                             Score score = Score.builder()
                                     .scoreFirst(scoreFirst)
                                     .scoreFinal(scoreFinal)
@@ -1325,19 +1366,37 @@ public class ScoreController {
         pdfDocument.close();
         return null;
     }
-    private boolean checkContainsSubject(String subjectName){
+
+    private boolean checkContainsSubject(String subjectName) {
         List<Subject> subjectsData = subjectRepository.findAll();
         List<String> subjectsName = new ArrayList<>();
-        for (Subject subject : subjectsData){
-            if (subject.getSubjectName().equals(subjectName)){
+        for (Subject subject : subjectsData) {
+            if (subject.getSubjectName().equals(subjectName)) {
                 return true;
             }
         }
         return false;
     }
+
     @GetMapping("/users/{id}")
-    public ResponseEntity<?> getScoresByStudentCode(@PathVariable("id") String studentCode){
+    public ResponseEntity<?> getScoresByStudentCode(@PathVariable("id") String studentCode) {
         return ResponseEntity.ok(scoreService.getScoreByStudentCode(studentCode));
+    }
+
+    @PostMapping("/restore")
+    public ResponseEntity<?> getRawScoresByStudentCode(@RequestBody Map<String, String> body) {
+        try {
+            String encryptedKey = body.get("encryptedKey");
+            String encryptedData = body.get("encryptedData");
+            String iv = body.get("iv");
+            String decrypted = encryptionService.decryptData(encryptedKey, encryptedData, iv).trim();
+            String studentCode = decrypted.startsWith("{")
+                    ? new com.fasterxml.jackson.databind.ObjectMapper().readTree(decrypted).get("studentCode").asText().trim()
+                    : decrypted;
+            return ResponseEntity.ok(scoreService.getRawScoreByStudentCode(studentCode));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Bad Request", "message", e.getMessage()));
+        }
     }
 
     @Operation(summary = "Create new score", description = "Creates a new score entry for a student")
