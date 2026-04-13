@@ -4,6 +4,7 @@ import com.example.KMALegend.dto.ScoreBatchRequestDTO;
 import com.example.KMALegend.entity.ScoreBatch;
 import com.example.KMALegend.entity.Student;
 import com.example.KMALegend.encode.DecryptedRequestWrapper;
+import com.example.KMALegend.encode.EncryptionService;
 import com.example.KMALegend.service.ScoreBatchService;
 import com.example.KMALegend.service.StudentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +29,7 @@ public class ScoreBatchController {
     private final ScoreBatchService scoreBatchService;
     private final ObjectMapper objectMapper;
     private final StudentService studentService;
+    private final EncryptionService encryptionService;
 
     @Operation(summary = "Create or update score batch",
             description = "Creates a new score batch or updates existing one for a student")
@@ -67,11 +69,16 @@ public class ScoreBatchController {
             String encryptedKey = body.get("encryptedKey");
             String encryptedData = body.get("encryptedData");
             String iv = body.get("iv");
-            ScoreBatch result = scoreBatchService.getScoreBatchByEncryptedStudentCode(encryptedKey, encryptedData, iv);
+
+            // Decrypt trực tiếp tại controller
+            String studentCode = encryptionService.decryptData(encryptedKey, encryptedData, iv).trim();
+            System.out.println("Decrypted studentCode: " + studentCode);
+
+            ScoreBatch result = scoreBatchService.getScoreBatchByStudentCode(studentCode);
             if (result == null) {
                 return ResponseEntity.notFound().build();
             }
-            Student student = studentService.findByStudentCode(result.getStudentCode());
+            Student student = studentService.findByStudentCode(studentCode);
             Map<String, Object> studentInfo = new java.util.HashMap<>();
             if (student != null) {
                 studentInfo.put("display_name", student.getStudentName());
@@ -90,6 +97,7 @@ public class ScoreBatchController {
                     "score_batch", result
             ));
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "Bad Request",
                     "message", e.getMessage()
