@@ -61,12 +61,12 @@ public class ScoreBatchController {
 
     @Operation(summary = "Get score batch by encrypted student code",
             description = "Decrypts the student code and returns the score batch with masked student info")
-    @GetMapping("/student/encrypted")
-    public ResponseEntity<?> getScoreBatchByEncryptedCode(
-            @RequestParam String encryptedKey,
-            @RequestParam String encryptedData,
-            @RequestParam String iv) {
+    @PostMapping("/student/encrypted")
+    public ResponseEntity<?> getScoreBatchByEncryptedCode(@RequestBody Map<String, String> body) {
         try {
+            String encryptedKey = body.get("encryptedKey");
+            String encryptedData = body.get("encryptedData");
+            String iv = body.get("iv");
             ScoreBatch result = scoreBatchService.getScoreBatchByEncryptedStudentCode(encryptedKey, encryptedData, iv);
             if (result == null) {
                 return ResponseEntity.notFound().build();
