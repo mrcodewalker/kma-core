@@ -156,7 +156,12 @@ public class ScoreBatchServiceImpl implements ScoreBatchService {
     @Override
     public ScoreBatch getScoreBatchByEncryptedStudentCode(String encryptedKey, String encryptedData, String iv) {
         try {
+            // Log để debug
+            System.out.println("encryptedKey length: " + (encryptedKey != null ? encryptedKey.length() : "null"));
+            System.out.println("encryptedData: " + encryptedData);
+            System.out.println("iv: " + iv);
             String studentCode = encryptionService.decryptData(encryptedKey, encryptedData, iv).trim();
+            System.out.println("Decrypted studentCode: " + studentCode);
             return scoreBatchRepository.findByStudentCode(studentCode).orElse(null);
         } catch (Exception e) {
             throw new RuntimeException("Failed to decrypt student code: " + e.getMessage(), e);

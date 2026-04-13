@@ -61,7 +61,7 @@ public class ScoreBatchController {
 
     @Operation(summary = "Get score batch by encrypted student code",
             description = "Decrypts the student code and returns the score batch with masked student info")
-    @PostMapping("/student/encrypted")
+    @PostMapping("/encrypted/student")
     public ResponseEntity<?> getScoreBatchByEncryptedCode(@RequestBody Map<String, String> body) {
         try {
             String encryptedKey = body.get("encryptedKey");

@@ -1,9 +1,10 @@
 package com.example.KMALegend.config;
 
-import com.example.KMALegend.encode.EncryptionInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import com.example.KMALegend.encode.EncryptionInterceptor;
 
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
@@ -20,7 +21,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/v1/**")
                 .excludePathPatterns(
                         "/api/v1/encryption/public-key",
-                        "/api/v1/score-batch/student/encrypted"
+                        "/api/v1/score-batch/encrypted/student"
                 );
     }
 }
