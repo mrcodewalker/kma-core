@@ -63,7 +63,7 @@ public class ScoreBatchController {
 
     @Operation(summary = "Get score batch by encrypted student code",
             description = "Decrypts the student code and returns the score batch with masked student info")
-    @PostMapping("/encrypted/student")
+    @PostMapping("/get-by-encrypted")
     public ResponseEntity<?> getScoreBatchByEncryptedCode(@RequestBody Map<String, String> body) {
         try {
             String encryptedKey = body.get("encryptedKey");
@@ -71,8 +71,16 @@ public class ScoreBatchController {
             String iv = body.get("iv");
 
             // Decrypt trực tiếp tại controller
-            String studentCode = encryptionService.decryptData(encryptedKey, encryptedData, iv).trim();
-            System.out.println("Decrypted studentCode: " + studentCode);
+            String decrypted = encryptionService.decryptData(encryptedKey, encryptedData, iv).trim();
+            System.out.println("Decrypted studentCode: " + decrypted);
+
+            // Parse nếu là JSON object {"studentCode":"..."}
+            String studentCode;
+            if (decrypted.startsWith("{")) {
+                studentCode = objectMapper.readTree(decrypted).get("studentCode").asText().trim();
+            } else {
+                studentCode = decrypted;
+            }
 
             ScoreBatch result = scoreBatchService.getScoreBatchByStudentCode(studentCode);
             if (result == null) {
