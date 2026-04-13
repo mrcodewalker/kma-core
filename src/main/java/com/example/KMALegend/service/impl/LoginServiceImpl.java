@@ -45,7 +45,8 @@ import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
-public class LoginServiceImpl{
+public class LoginServiceImpl {
+
     private CookieStore cookieStore;
     private HttpClientContext context;
     private CloseableHttpClient httpClient;
@@ -56,6 +57,7 @@ public class LoginServiceImpl{
     private static final String STUDENT_SCHEDULE_URL = "http://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/Reports/Form/StudentTimeTable.aspx";
     private static final String STUDENT_VIRTUAL_CALENDAR = "http://qldt.actvn.edu.vn/cmcsoft.iu.web.info/StudyRegister/StudyRegister.aspx";
     private static final String DATE_FORMAT = "dd/MM/yyyy";
+
     @PostConstruct
     public void init() {
         cookieStore = new BasicCookieStore();
@@ -73,7 +75,7 @@ public class LoginServiceImpl{
         int startIndex = targetSplit.indexOf("Set-Cookie:");
         int endIndex = targetSplit.indexOf(";", startIndex);
 
-        String cookieData = (startIndex!=-1) ? targetSplit.substring(startIndex,endIndex) : "NULL COOKIE DATA";
+        String cookieData = (startIndex != -1) ? targetSplit.substring(startIndex, endIndex) : "NULL COOKIE DATA";
         return StudentSessions.builder()
                 .studentCode(studentCode)
                 .cookieData(cookieData)
@@ -131,16 +133,32 @@ public class LoginServiceImpl{
             String studentCode = profileDoc.select("input[name=txtMaSV]").val();
             String gender = profileDoc.select("select[name=drpGioiTinh] option[selected]").text();
             String birthday = profileDoc.select("input[name=txtNgaySinh]").val();
+            String birthPlace = profileDoc.select("input[name=txtNoiSinh]").val();
+            String idCard = profileDoc.select("input[name=txtCMTND]").val();
+            String bankAccount = profileDoc.select("input[name=txtSoTaiKhoanNganHang]").val();
+            String enrollSemester = profileDoc.select("input[name=txtHocKyNhapHoc]").val();
+            String phone = profileDoc.select("input[name=txtDienThoaiCaNHAN]").val();
+            String email = profileDoc.select("input[name=txtEmail]").val();
 
             // Parse student class from student code and create student record if not exists
             String studentClass = parseStudentClassFromCode(studentCode);
+            Student student = Student.builder()
+                    .studentCode(studentCode)
+                    .studentName(displayName)
+                    .studentClass(studentClass)
+                    .gender(gender)
+                    .birthday(birthday)
+                    .birthPlace(birthPlace)
+                    .idCard(idCard)
+                    .bankAccount(bankAccount)
+                    .enrollSemester(enrollSemester)
+                    .phone(phone)
+                    .email(email)
+                    .build();
             if (!studentService.existByStudentCode(studentCode)) {
-                Student student = Student.builder()
-                        .studentCode(studentCode)
-                        .studentName(displayName)
-                        .studentClass(studentClass)
-                        .build();
                 studentService.createStudent(student);
+            } else {
+                studentService.updateStudentInfo(student);
             }
 
             Map<String, String> studentInfo = new HashMap<>();
@@ -148,6 +166,12 @@ public class LoginServiceImpl{
             studentInfo.put("student_code", studentCode);
             studentInfo.put("gender", gender);
             studentInfo.put("birthday", birthday);
+            studentInfo.put("birth_place", birthPlace);
+            studentInfo.put("id_card", idCard);
+            studentInfo.put("bank_account", bankAccount);
+            studentInfo.put("enroll_semester", enrollSemester);
+            studentInfo.put("phone", phone);
+            studentInfo.put("email", email);
 
             HttpGet scheduleGet = new HttpGet(STUDENT_SCHEDULE_URL);
             HttpResponse scheduleGetResponse = httpClient.execute(scheduleGet);
@@ -253,6 +277,34 @@ public class LoginServiceImpl{
             session.setAttribute("context", context);
             session.setAttribute("httpClient", httpClient);
 
+            // Fetch student profile info
+            HttpGet profileGet = new HttpGet(STUDENT_PROFILE_URL);
+            HttpResponse profileGetResponse = httpClient.execute(profileGet, context);
+            String profileGetHtml = EntityUtils.toString(profileGetResponse.getEntity());
+            Document profileDoc = Jsoup.parse(profileGetHtml);
+            String displayName = profileDoc.select("input[name=txtHoDem]").val() + " " + profileDoc.select("input[name=txtTen]").val();
+            String studentCode = profileDoc.select("input[name=txtMaSV]").val();
+            String gender = profileDoc.select("select[name=drpGioiTinh] option[selected]").text();
+            String birthday = profileDoc.select("input[name=txtNgaySinh]").val();
+            String birthPlace = profileDoc.select("input[name=txtNoiSinh]").val();
+            String idCard = profileDoc.select("input[name=txtCMTND]").val();
+            String bankAccount = profileDoc.select("input[name=txtSoTaiKhoanNganHang]").val();
+            String enrollSemester = profileDoc.select("input[name=txtHocKyNhapHoc]").val();
+            String phone = profileDoc.select("input[name=txtDienThoaiCaNHAN]").val();
+            String email = profileDoc.select("input[name=txtEmail]").val();
+
+            Map<String, String> studentInfo = new HashMap<>();
+            studentInfo.put("display_name", displayName);
+            studentInfo.put("student_code", studentCode);
+            studentInfo.put("gender", gender);
+            studentInfo.put("birthday", birthday);
+            studentInfo.put("birth_place", maskField(birthPlace));
+            studentInfo.put("id_card", maskField(idCard));
+            studentInfo.put("bank_account", maskField(bankAccount));
+            studentInfo.put("enroll_semester", maskField(enrollSemester));
+            studentInfo.put("phone", maskField(phone));
+            studentInfo.put("email", maskEmail(email));
+
             // Step 2: Get Academic Years
             HttpGet calendarGet = new HttpGet(STUDENT_VIRTUAL_CALENDAR);
             HttpResponse calendarResponse = httpClient.execute(calendarGet, context);
@@ -349,7 +401,6 @@ public class LoginServiceImpl{
                             String lecturer = row.select("td").get(6).text(); // Lecturer
                             Map<String, String> afterParse = this.parseVirtualCalendar(time);
 
-
                             TimelineResponse timelineResponse = TimelineResponse.builder()
                                     .courseCode(coursePart)
                                     .courseName(className)
@@ -377,7 +428,10 @@ public class LoginServiceImpl{
             return ResponseEntity.ok(Map.of(
                     "code", "200",
                     "message", "OK",
-                    "virtual_calendar", result
+                    "data", Map.of(
+                            "student_info", studentInfo,
+                            "virtual_calendar", result
+                    )
             ));
 
         } catch (IOException | ParseException e) {
@@ -385,7 +439,6 @@ public class LoginServiceImpl{
                     .body(Map.of("code", "500", "message", "Error: " + e.getMessage()));
         }
     }
-
 
     private Map<String, String> parseVirtualCalendar(String studySchedule) throws ParseException {
         // More tolerant parser for virtual calendar blocks.
@@ -447,10 +500,12 @@ public class LoginServiceImpl{
         }
         return result;
     }
-    private Map<String, String> parseScheduleFromRegistration(String time) throws ParseException{
+
+    private Map<String, String> parseScheduleFromRegistration(String time) throws ParseException {
 
         return null;
     }
+
     private Map<String, String> parseInitialFormData(Document doc) {
         Map<String, String> formData = new HashMap<>();
         for (Element input : doc.select("input")) {
@@ -464,11 +519,11 @@ public class LoginServiceImpl{
     }
 
     /**
-     * Parse student class from student code
-     * Example: CT070218 -> CT7B (02 is the 2nd class, so B)
-     *          DT050103 -> DT5A (01 is the 1st class, so A)
-     * Pattern: First 2 chars (major) + chars 2-3 (year, remove leading zero) + letter from chars 4-5 (class number)
-     * Class number: 01 -> A, 02 -> B, 03 -> C, ..., 26 -> Z
+     * Parse student class from student code Example: CT070218 -> CT7B (02 is
+     * the 2nd class, so B) DT050103 -> DT5A (01 is the 1st class, so A)
+     * Pattern: First 2 chars (major) + chars 2-3 (year, remove leading zero) +
+     * letter from chars 4-5 (class number) Class number: 01 -> A, 02 -> B, 03
+     * -> C, ..., 26 -> Z
      */
     private String parseStudentClassFromCode(String studentCode) {
         if (studentCode == null || studentCode.length() < 6) {
@@ -496,6 +551,7 @@ public class LoginServiceImpl{
             return null;
         }
     }
+
     private Map<String, String> parseSchedule(String studySchedule) throws ParseException {
         // Loại bỏ các thẻ HTML bằng cách sử dụng Jsoup để lấy văn bản thuần túy
         Document doc = Jsoup.parse(studySchedule);
@@ -510,27 +566,27 @@ public class LoginServiceImpl{
         int check = 0;
         String start = "";
         String end = "";
-        for (String line : lines){
+        for (String line : lines) {
             Calendar calendar = Calendar.getInstance();
 
             SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-            if (line.contains("Từ")||
-                    line.contains("đến")) {
+            if (line.contains("Từ")
+                    || line.contains("đến")) {
                 line = line.substring(0, line.indexOf(":"));
                 start = "";
                 end = "";
-                check=1;
+                check = 1;
             } else {
                 int i = 1 + line.indexOf(">");
                 int j = line.lastIndexOf("<");
                 line = line.substring(i, j);
-                check=0;
+                check = 0;
             }
             String[] parts = line.split(" ");
             int day = 2;
-            if (check==1){
-                start=parts[1];
-                end=parts[3];
+            if (check == 1) {
+                start = parts[1];
+                end = parts[3];
             } else {
                 day = Integer.parseInt(parts[1]);
                 dayInWeek.add(parts[1]);
@@ -539,15 +595,15 @@ public class LoginServiceImpl{
                 calendar.setTime(starts);
                 while (!calendar.getTime().after(ends)) {
                     int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
-                    if (dayOfWeek == dayOfWeekToCalendarDay(day+"")) {
+                    if (dayOfWeek == dayOfWeekToCalendarDay(day + "")) {
                         String dateStr = sdf.format(calendar.getTime());
-                        if (result.get("days")==null){
+                        if (result.get("days") == null) {
                             result.put("days", dateStr);
                             result.put("lessons", parts[3]);
 
                         } else {
-                            result.put("days", result.get("days")+" "+dateStr);
-                            result.put("lessons", result.get("lessons")+" "+parts[3]);
+                            result.put("days", result.get("days") + " " + dateStr);
+                            result.put("lessons", result.get("lessons") + " " + parts[3]);
                         }
                     }
                     calendar.add(Calendar.DATE, 1);
@@ -559,25 +615,48 @@ public class LoginServiceImpl{
 
     private int dayOfWeekToCalendarDay(String dayOfWeek) {
         switch (dayOfWeek) {
-            case "2": return Calendar.MONDAY;
-            case "3": return Calendar.TUESDAY;
-            case "4": return Calendar.WEDNESDAY;
-            case "5": return Calendar.THURSDAY;
-            case "6": return Calendar.FRIDAY;
-            case "7": return Calendar.SATURDAY;
-            default: return Calendar.SUNDAY;
+            case "2":
+                return Calendar.MONDAY;
+            case "3":
+                return Calendar.TUESDAY;
+            case "4":
+                return Calendar.WEDNESDAY;
+            case "5":
+                return Calendar.THURSDAY;
+            case "6":
+                return Calendar.FRIDAY;
+            case "7":
+                return Calendar.SATURDAY;
+            default:
+                return Calendar.SUNDAY;
         }
     }
+
     private static int getDayOfWeek(String line) {
-        if (line.contains("Thứ 2")) return Calendar.MONDAY;
-        if (line.contains("Thứ 3")) return Calendar.TUESDAY;
-        if (line.contains("Thứ 4")) return Calendar.WEDNESDAY;
-        if (line.contains("Thứ 5")) return Calendar.THURSDAY;
-        if (line.contains("Thứ 6")) return Calendar.FRIDAY;
-        if (line.contains("Thứ 7")) return Calendar.SATURDAY;
-        if (line.contains("Chủ nhật")) return Calendar.SUNDAY;
+        if (line.contains("Thứ 2")) {
+            return Calendar.MONDAY;
+        }
+        if (line.contains("Thứ 3")) {
+            return Calendar.TUESDAY;
+        }
+        if (line.contains("Thứ 4")) {
+            return Calendar.WEDNESDAY;
+        }
+        if (line.contains("Thứ 5")) {
+            return Calendar.THURSDAY;
+        }
+        if (line.contains("Thứ 6")) {
+            return Calendar.FRIDAY;
+        }
+        if (line.contains("Thứ 7")) {
+            return Calendar.SATURDAY;
+        }
+        if (line.contains("Chủ nhật")) {
+            return Calendar.SUNDAY;
+        }
         return -1;
     }
+
     public static List<Map<String, String>> extractTableData(String html) {
         List<Map<String, String>> rowsData = new ArrayList<>();
 
@@ -608,6 +687,28 @@ public class LoginServiceImpl{
         }
 
         return rowsData;
+    }
+
+    private String maskField(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        int keep = Math.min(2, value.length());
+        return value.substring(0, keep) + "*".repeat(Math.max(0, value.length() - keep));
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return email;
+        }
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 0) {
+            return maskField(email);
+        }
+        String local = email.substring(0, atIndex);
+        String domain = email.substring(atIndex);
+        int keep = Math.min(2, local.length());
+        return local.substring(0, keep) + "*".repeat(local.length() - keep) + domain;
     }
 
 }

@@ -26,8 +26,8 @@ public class ScoreBatchController {
     private final ScoreBatchService scoreBatchService;
     private final ObjectMapper objectMapper;
 
-    @Operation(summary = "Create or update score batch", 
-               description = "Creates a new score batch or updates existing one for a student")
+    @Operation(summary = "Create or update score batch",
+            description = "Creates a new score batch or updates existing one for a student")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Score batch created/updated successfully"),
         @ApiResponse(responseCode = "400", description = "Invalid input data"),
@@ -39,14 +39,14 @@ public class ScoreBatchController {
             // Debug: Kiểm tra decrypted data
             String decryptedJson = (String) request.getAttribute("decryptedData");
             System.out.println("Decrypted JSON: " + decryptedJson);
-            
+
             if (decryptedJson == null) {
                 return ResponseEntity.badRequest().body("No decrypted data found. Check encryption interceptor.");
             }
-            
+
             DecryptedRequestWrapper wrapper = new DecryptedRequestWrapper(request, objectMapper);
             ScoreBatchRequestDTO requestDTO = wrapper.getDecryptedBody(ScoreBatchRequestDTO.class);
-            
+
             // Sử dụng method tối ưu cho update
             ScoreBatch result = scoreBatchService.updateScoreBatchOptimized(requestDTO);
             return ResponseEntity.ok(result);
@@ -56,8 +56,30 @@ public class ScoreBatchController {
         }
     }
 
-    @Operation(summary = "Get score batch by student code", 
-               description = "Retrieves score batch information for a specific student")
+    @Operation(summary = "Get score batch by encrypted student code",
+            description = "Decrypts the student code and returns the score batch")
+    @GetMapping("/student/encrypted")
+    public ResponseEntity<?> getScoreBatchByEncryptedCode(
+            @RequestParam String encryptedKey,
+            @RequestParam String encryptedData,
+            @RequestParam String iv) {
+        try {
+            ScoreBatch result = scoreBatchService.getScoreBatchByEncryptedStudentCode(encryptedKey, encryptedData, iv);
+            if (result != null) {
+                return ResponseEntity.ok(result);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Bad Request",
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    @Operation(summary = "Get score batch by student code",
+            description = "Retrieves score batch information for a specific student")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Score batch retrieved successfully"),
         @ApiResponse(responseCode = "404", description = "Score batch not found"),
@@ -83,14 +105,14 @@ public class ScoreBatchController {
         try {
             String decryptedJson = (String) request.getAttribute("decryptedData");
             System.out.println("Test endpoint - Decrypted JSON: " + decryptedJson);
-            
+
             if (decryptedJson == null) {
                 return ResponseEntity.badRequest().body("No decrypted data found");
             }
-            
+
             return ResponseEntity.ok(Map.of(
-                "message", "Encryption test successful",
-                "decryptedData", decryptedJson
+                    "message", "Encryption test successful",
+                    "decryptedData", decryptedJson
             ));
         } catch (Exception e) {
             e.printStackTrace();
@@ -102,9 +124,8 @@ public class ScoreBatchController {
     @PostMapping("/test-simple")
     public ResponseEntity<?> testSimple(@RequestBody Map<String, Object> data) {
         return ResponseEntity.ok(Map.of(
-            "message", "Simple test successful",
-            "receivedData", data
+                "message", "Simple test successful",
+                "receivedData", data
         ));
     }
 }
-

@@ -4,8 +4,12 @@ import com.example.KMALegend.dto.ScoreBatchRequestDTO;
 import com.example.KMALegend.entity.ScoreBatch;
 
 public interface ScoreBatchService {
-    ScoreBatch createOrUpdateScoreBatch(ScoreBatchRequestDTO requestDTO);
-    ScoreBatch getScoreBatchByStudentCode(String studentCode);
-    ScoreBatch updateScoreBatchOptimized(ScoreBatchRequestDTO requestDTO);
-}
 
+    ScoreBatch createOrUpdateScoreBatch(ScoreBatchRequestDTO requestDTO);
+
+    ScoreBatch getScoreBatchByStudentCode(String studentCode);
+
+    ScoreBatch updateScoreBatchOptimized(ScoreBatchRequestDTO requestDTO);
+
+    ScoreBatch getScoreBatchByEncryptedStudentCode(String encryptedKey, String encryptedData, String iv);
+}

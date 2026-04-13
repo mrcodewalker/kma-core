@@ -5,6 +5,7 @@ import com.example.KMALegend.entity.ScoreBatch;
 import com.example.KMALegend.entity.ScoreItem;
 import com.example.KMALegend.repository.ScoreBatchRepository;
 import com.example.KMALegend.repository.ScoreItemRepository;
+import com.example.KMALegend.encode.EncryptionService;
 import com.example.KMALegend.service.ScoreBatchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,12 +22,13 @@ public class ScoreBatchServiceImpl implements ScoreBatchService {
 
     private final ScoreBatchRepository scoreBatchRepository;
     private final ScoreItemRepository scoreItemRepository;
+    private final EncryptionService encryptionService;
 
     @Override
     @Transactional
     public ScoreBatch createOrUpdateScoreBatch(ScoreBatchRequestDTO requestDTO) {
         String studentCode = requestDTO.getStudentInfo().getStudentCode();
-        
+
         // Tìm kiếm ScoreBatch hiện tại theo studentCode
         Optional<ScoreBatch> existingBatch = scoreBatchRepository.findByStudentCode(studentCode);
 
@@ -36,12 +38,12 @@ public class ScoreBatchServiceImpl implements ScoreBatchService {
             scoreBatch = existingBatch.get();
             scoreBatch.setStudentName(requestDTO.getStudentInfo().getStudentName());
             scoreBatch.setStudentClass(requestDTO.getStudentInfo().getStudentClass());
-            scoreBatch.setLastUpdated(requestDTO.getLastUpdated() != null ? 
-                    requestDTO.getLastUpdated() : LocalDateTime.now());
-            
+            scoreBatch.setLastUpdated(requestDTO.getLastUpdated() != null
+                    ? requestDTO.getLastUpdated() : LocalDateTime.now());
+
             // Lưu ScoreBatch
             scoreBatch = scoreBatchRepository.save(scoreBatch);
-            
+
             // Xóa tất cả ScoreItem cũ (nhanh hơn với batch delete)
             scoreItemRepository.deleteByScoreBatch_BatchId(scoreBatch.getBatchId());
         } else {
@@ -50,29 +52,29 @@ public class ScoreBatchServiceImpl implements ScoreBatchService {
                     .studentCode(studentCode)
                     .studentName(requestDTO.getStudentInfo().getStudentName())
                     .studentClass(requestDTO.getStudentInfo().getStudentClass())
-                    .lastUpdated(requestDTO.getLastUpdated() != null ? 
-                            requestDTO.getLastUpdated() : LocalDateTime.now())
+                    .lastUpdated(requestDTO.getLastUpdated() != null
+                            ? requestDTO.getLastUpdated() : LocalDateTime.now())
                     .build();
-            
+
             // Lưu ScoreBatch
             scoreBatch = scoreBatchRepository.save(scoreBatch);
         }
-        
+
         final ScoreBatch finalScoreBatch = scoreBatch;
 
         // Tạo ScoreItem mới (không set ID để tránh conflict)
         List<ScoreItem> scoreItems = requestDTO.getScores().stream()
                 .map(scoreDTO -> ScoreItem.builder()
-                        .scoreBatch(finalScoreBatch)
-                        .scoreText(scoreDTO.getScoreText())
-                        .scoreFirst(scoreDTO.getScoreFirst())
-                        .scoreSecond(scoreDTO.getScoreSecond())
-                        .scoreFinal(scoreDTO.getScoreFinal())
-                        .scoreOverall(scoreDTO.getScoreOverall())
-                        .subjectName(scoreDTO.getSubjectName())
-                        .subjectCredit(scoreDTO.getSubjectCredit())
-                        .isSelected(scoreDTO.getIsSelected())
-                        .build())
+                .scoreBatch(finalScoreBatch)
+                .scoreText(scoreDTO.getScoreText())
+                .scoreFirst(scoreDTO.getScoreFirst())
+                .scoreSecond(scoreDTO.getScoreSecond())
+                .scoreFinal(scoreDTO.getScoreFinal())
+                .scoreOverall(scoreDTO.getScoreOverall())
+                .subjectName(scoreDTO.getSubjectName())
+                .subjectCredit(scoreDTO.getSubjectCredit())
+                .isSelected(scoreDTO.getIsSelected())
+                .build())
                 .toList();
 
         // Lưu tất cả ScoreItem trong một lần (batch insert)
@@ -89,7 +91,7 @@ public class ScoreBatchServiceImpl implements ScoreBatchService {
         } else {
             savedItems = scoreItemRepository.saveAll(scoreItems);
         }
-        
+
         // Set scoreItems để tránh lazy loading
         finalScoreBatch.setScoreItems(savedItems);
 
@@ -101,53 +103,63 @@ public class ScoreBatchServiceImpl implements ScoreBatchService {
         return scoreBatchRepository.findByStudentCode(studentCode)
                 .orElse(null);
     }
-    
+
     // Method tối ưu để update nhanh hơn
     @Transactional
     public ScoreBatch updateScoreBatchOptimized(ScoreBatchRequestDTO requestDTO) {
         String studentCode = requestDTO.getStudentInfo().getStudentCode();
-        
+
         // Tìm ScoreBatch hiện tại
         Optional<ScoreBatch> existingBatch = scoreBatchRepository.findByStudentCode(studentCode);
-        
+
         if (existingBatch.isPresent()) {
             ScoreBatch scoreBatch = existingBatch.get();
-            
+
             // Update thông tin cơ bản
             scoreBatch.setStudentName(requestDTO.getStudentInfo().getStudentName());
             scoreBatch.setStudentClass(requestDTO.getStudentInfo().getStudentClass());
-            scoreBatch.setLastUpdated(requestDTO.getLastUpdated() != null ? 
-                    requestDTO.getLastUpdated() : LocalDateTime.now());
-            
+            scoreBatch.setLastUpdated(requestDTO.getLastUpdated() != null
+                    ? requestDTO.getLastUpdated() : LocalDateTime.now());
+
             // Lưu ScoreBatch
             final ScoreBatch finalScoreBatch = scoreBatchRepository.save(scoreBatch);
-            
+
             // Xóa và tạo mới ScoreItem (cách nhanh nhất)
             scoreItemRepository.deleteByScoreBatch_BatchId(finalScoreBatch.getBatchId());
-            
+
             // Tạo ScoreItem mới
             List<ScoreItem> scoreItems = requestDTO.getScores().stream()
                     .map(scoreDTO -> ScoreItem.builder()
-                            .scoreBatch(finalScoreBatch)
-                            .scoreText(scoreDTO.getScoreText())
-                            .scoreFirst(scoreDTO.getScoreFirst())
-                            .scoreSecond(scoreDTO.getScoreSecond())
-                            .scoreFinal(scoreDTO.getScoreFinal())
-                            .scoreOverall(scoreDTO.getScoreOverall())
-                            .subjectName(scoreDTO.getSubjectName())
-                            .subjectCredit(scoreDTO.getSubjectCredit())
-                            .isSelected(scoreDTO.getIsSelected())
-                            .build())
+                    .scoreBatch(finalScoreBatch)
+                    .scoreText(scoreDTO.getScoreText())
+                    .scoreFirst(scoreDTO.getScoreFirst())
+                    .scoreSecond(scoreDTO.getScoreSecond())
+                    .scoreFinal(scoreDTO.getScoreFinal())
+                    .scoreOverall(scoreDTO.getScoreOverall())
+                    .subjectName(scoreDTO.getSubjectName())
+                    .subjectCredit(scoreDTO.getSubjectCredit())
+                    .isSelected(scoreDTO.getIsSelected())
+                    .build())
                     .toList();
-            
+
             // Batch insert
             List<ScoreItem> savedItems = scoreItemRepository.saveAll(scoreItems);
             finalScoreBatch.setScoreItems(savedItems);
-            
+
             return finalScoreBatch;
         } else {
             // Tạo mới nếu chưa tồn tại
             return createOrUpdateScoreBatch(requestDTO);
+        }
+    }
+
+    @Override
+    public ScoreBatch getScoreBatchByEncryptedStudentCode(String encryptedKey, String encryptedData, String iv) {
+        try {
+            String studentCode = encryptionService.decryptData(encryptedKey, encryptedData, iv).trim();
+            return scoreBatchRepository.findByStudentCode(studentCode).orElse(null);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to decrypt student code: " + e.getMessage(), e);
         }
     }
 }
