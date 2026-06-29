@@ -187,10 +187,11 @@ public class LoginServiceImpl {
                 rowData.put("course_name", row.select("td").get(1).text());
                 rowData.put("course_code", row.select("td").get(2).text());
 //                rowData.put("studySchedule", row.select("td").get(3).html().replace("<br>", "\n"));
-                Map<String, String> parsedSchedule = parseSchedule(row.select("td").get(3).html().replace("<br>", "\n"));
+                String location = row.select("td").get(4).text();
+                Map<String, String> parsedSchedule = parseSchedule(row.select("td").get(3).html().replace("<br>", "\n"), location);
                 rowData.put("study_days", parsedSchedule.get("days"));
                 rowData.put("lessons", parsedSchedule.get("lessons"));
-                rowData.put("study_location", row.select("td").get(4).text());
+                rowData.put("study_location", parsedSchedule.get("locations") != null ? parsedSchedule.get("locations") : location);
                 rowData.put("teacher", row.select("td").get(5).text());
                 scheduleData.add(rowData);
             }
@@ -399,12 +400,12 @@ public class LoginServiceImpl {
                             String time = row.select("td").get(4).text(); // Time
                             String location = row.select("td").get(5).text(); // Location
                             String lecturer = row.select("td").get(6).text(); // Lecturer
-                            Map<String, String> afterParse = this.parseVirtualCalendar(time);
+                            Map<String, String> afterParse = this.parseVirtualCalendar(time, location);
 
                             TimelineResponse timelineResponse = TimelineResponse.builder()
                                     .courseCode(coursePart)
                                     .courseName(className)
-                                    .studyLocation(location)
+                                    .studyLocation(afterParse.get("locations") != null ? afterParse.get("locations") : location)
                                     .teacher(lecturer)
                                     .lessons(afterParse.get("lessons"))
                                     .studyDays(afterParse.get("days"))
@@ -440,7 +441,52 @@ public class LoginServiceImpl {
         }
     }
 
-    private Map<String, String> parseVirtualCalendar(String studySchedule) throws ParseException {
+    private Map<Integer, String> parseRoomPhases(String locationStr) {
+        Map<Integer, String> phaseToRoom = new HashMap<>();
+        if (locationStr == null || locationStr.isBlank()) {
+            return phaseToRoom;
+        }
+
+        Pattern pattern = Pattern.compile("\\((\\d+(?:,\\d+)*)\\)");
+        Matcher matcher = pattern.matcher(locationStr);
+
+        List<String> phasesStr = new ArrayList<>();
+        List<Integer> matchStarts = new ArrayList<>();
+        List<Integer> matchEnds = new ArrayList<>();
+
+        while (matcher.find()) {
+            phasesStr.add(matcher.group(1));
+            matchStarts.add(matcher.start());
+            matchEnds.add(matcher.end());
+        }
+
+        if (phasesStr.isEmpty()) {
+            phaseToRoom.put(-1, locationStr.trim());
+            return phaseToRoom;
+        }
+
+        for (int i = 0; i < phasesStr.size(); i++) {
+            int startOfNext = (i + 1 < phasesStr.size()) ? matchStarts.get(i + 1) : locationStr.length();
+            String room = locationStr.substring(matchEnds.get(i), startOfNext).trim();
+
+            if (room.startsWith(":") || room.startsWith("-")) {
+                room = room.substring(1).trim();
+            }
+
+            String[] parts = phasesStr.get(i).split(",");
+            for (String part : parts) {
+                try {
+                    phaseToRoom.put(Integer.parseInt(part.trim()), room);
+                } catch (NumberFormatException e) {
+                    // Ignore
+                }
+            }
+        }
+
+        return phaseToRoom;
+    }
+
+    private Map<String, String> parseVirtualCalendar(String studySchedule, String locationStr) throws ParseException {
         // More tolerant parser for virtual calendar blocks.
         // Handles multiple ranges like:
         // "Từ 19/01/2026 đến 08/02/2026: (1) Thứ 2 tiết 10,11,12 (LT) Thứ 4 tiết 10,11,12 (LT)
@@ -450,13 +496,15 @@ public class LoginServiceImpl {
         Map<String, String> result = new HashMap<>();
         SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
 
+        Map<Integer, String> roomPhases = parseRoomPhases(locationStr);
+
         // Regex to capture each range and its content until the next "Từ ... đến" or end of string
         Pattern rangePattern = Pattern.compile(
                 "Từ\\s*(\\d{2}/\\d{2}/\\d{4})\\s*đến\\s*(\\d{2}/\\d{2}/\\d{4})\\s*:?(.*?)(?=Từ\\s*\\d{2}/\\d{2}/\\d{4}\\s*đến|$)",
                 Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
 
         // Regex to capture weekday + lesson list inside a range
-        Pattern weekdayPattern = Pattern.compile("Thứ\\s*(\\d)\\s*tiết\\s*([\\d,]+)", Pattern.CASE_INSENSITIVE);
+        Pattern weekdayPattern = Pattern.compile("(Thứ\\s*(\\d)|Chủ\\s*nhật)\\s*tiết\\s*([\\d,]+)", Pattern.CASE_INSENSITIVE);
 
         Matcher rangeMatcher = rangePattern.matcher(studySchedule);
         while (rangeMatcher.find()) {
@@ -467,12 +515,31 @@ public class LoginServiceImpl {
             Date startDate = sdf.parse(startStr);
             Date endDate = sdf.parse(endStr);
 
+            // Parse phase index
+            Pattern phasePattern = Pattern.compile("\\((\\d+)\\)");
+            Matcher phaseMatcher = phasePattern.matcher(body);
+            int phaseNum = -1;
+            if (phaseMatcher.find()) {
+                phaseNum = Integer.parseInt(phaseMatcher.group(1));
+            }
+
+            // Determine location for this phase
+            String room = locationStr;
+            if (roomPhases.containsKey(phaseNum)) {
+                room = roomPhases.get(phaseNum);
+            } else if (roomPhases.containsKey(-1)) {
+                room = roomPhases.get(-1);
+            }
+
             Matcher weekdayMatcher = weekdayPattern.matcher(body);
             boolean foundWeekday = false;
             while (weekdayMatcher.find()) {
                 foundWeekday = true;
-                String dayStr = weekdayMatcher.group(1);          // e.g. "2"
-                String lessonsStr = weekdayMatcher.group(2);      // e.g. "10,11,12"
+                String dayStr = weekdayMatcher.group(2);          // e.g. "2"
+                String lessonsStr = weekdayMatcher.group(3);      // e.g. "10,11,12"
+                if (dayStr == null) {
+                    dayStr = "CN"; // Chủ nhật
+                }
 
                 int targetDow = dayOfWeekToCalendarDay(dayStr);
                 Calendar calendar = Calendar.getInstance();
@@ -484,9 +551,11 @@ public class LoginServiceImpl {
                         if (!result.containsKey("days")) {
                             result.put("days", dateStr);
                             result.put("lessons", lessonsStr);
+                            result.put("locations", room);
                         } else {
                             result.put("days", result.get("days") + " " + dateStr);
                             result.put("lessons", result.get("lessons") + " " + lessonsStr);
+                            result.put("locations", result.get("locations") + ";" + room);
                         }
                     }
                     calendar.add(Calendar.DATE, 1);
@@ -552,65 +621,9 @@ public class LoginServiceImpl {
         }
     }
 
-    private Map<String, String> parseSchedule(String studySchedule) throws ParseException {
-        // Loại bỏ các thẻ HTML bằng cách sử dụng Jsoup để lấy văn bản thuần túy
-        Document doc = Jsoup.parse(studySchedule);
-        String cleanText = doc.body().text();
-        String[] lines = studySchedule.split("\n");
-        // Tách các đoạn văn bản bằng cách phân tách theo các ký tự xuống dòng
-        List<String> startDay = new ArrayList<>();
-        List<String> endDay = new ArrayList<>();
-        List<String> lesson = new ArrayList<>();
-        List<String> dayInWeek = new ArrayList<>();
-        Map<String, String> result = new HashMap<>();
-        int check = 0;
-        String start = "";
-        String end = "";
-        for (String line : lines) {
-            Calendar calendar = Calendar.getInstance();
-
-            SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-            if (line.contains("Từ")
-                    || line.contains("đến")) {
-                line = line.substring(0, line.indexOf(":"));
-                start = "";
-                end = "";
-                check = 1;
-            } else {
-                int i = 1 + line.indexOf(">");
-                int j = line.lastIndexOf("<");
-                line = line.substring(i, j);
-                check = 0;
-            }
-            String[] parts = line.split(" ");
-            int day = 2;
-            if (check == 1) {
-                start = parts[1];
-                end = parts[3];
-            } else {
-                day = Integer.parseInt(parts[1]);
-                dayInWeek.add(parts[1]);
-                Date starts = sdf.parse(start);
-                Date ends = sdf.parse(end);
-                calendar.setTime(starts);
-                while (!calendar.getTime().after(ends)) {
-                    int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
-                    if (dayOfWeek == dayOfWeekToCalendarDay(day + "")) {
-                        String dateStr = sdf.format(calendar.getTime());
-                        if (result.get("days") == null) {
-                            result.put("days", dateStr);
-                            result.put("lessons", parts[3]);
-
-                        } else {
-                            result.put("days", result.get("days") + " " + dateStr);
-                            result.put("lessons", result.get("lessons") + " " + parts[3]);
-                        }
-                    }
-                    calendar.add(Calendar.DATE, 1);
-                }
-            }
-        }
-        return result;
+    private Map<String, String> parseSchedule(String studySchedule, String locationStr) throws ParseException {
+        String cleanText = Jsoup.parse(studySchedule).text();
+        return parseVirtualCalendar(cleanText, locationStr);
     }
 
     private int dayOfWeekToCalendarDay(String dayOfWeek) {
