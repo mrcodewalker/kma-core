@@ -170,6 +170,16 @@ public class ScoreServiceImpl implements ScoreService {
 
     public ListScoreDTO getRawScoreByStudentCode(String studentCode) {
         Student student = this.studentRepository.findByStudentCode(studentCode);
+        if (student == null) {
+            return ListScoreDTO.builder()
+                    .studentDTO(StudentDTO.builder()
+                            .studentCode(studentCode)
+                            .studentName("")
+                            .studentClass("")
+                            .build())
+                    .scoreDTOS(List.of())
+                    .build();
+        }
         List<Score> list = scoreRepository.findByStudentId(student.getStudentId());
         List<ScoreDTO> data = new ArrayList<>();
         for (Score clone : list) {

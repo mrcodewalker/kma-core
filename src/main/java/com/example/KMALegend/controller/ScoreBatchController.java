@@ -22,7 +22,7 @@ import java.util.Map;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("api/v1/score-batch")
-@CrossOrigin(origins = {"https://kma-legend.click", "http://localhost:4200"})
+@CrossOrigin(origins = {"https://kmalegend.click", "https://kma-legend.click", "http://localhost:4200"})
 @Tag(name = "Score Batch", description = "Score batch management APIs")
 public class ScoreBatchController {
 
@@ -83,9 +83,6 @@ public class ScoreBatchController {
             }
 
             ScoreBatch result = scoreBatchService.getScoreBatchByStudentCode(studentCode);
-            if (result == null) {
-                return ResponseEntity.notFound().build();
-            }
             Student student = studentService.findByStudentCode(studentCode);
             Map<String, Object> studentInfo = new java.util.HashMap<>();
             if (student != null) {
@@ -100,10 +97,10 @@ public class ScoreBatchController {
                 studentInfo.put("phone", maskField(student.getPhone()));
                 studentInfo.put("email", maskEmail(student.getEmail()));
             }
-            return ResponseEntity.ok(Map.of(
-                    "student_info", studentInfo,
-                    "score_batch", result
-            ));
+            Map<String, Object> responseBody = new java.util.HashMap<>();
+            responseBody.put("student_info", studentInfo);
+            responseBody.put("score_batch", result);
+            return ResponseEntity.ok(responseBody);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.badRequest().body(Map.of(

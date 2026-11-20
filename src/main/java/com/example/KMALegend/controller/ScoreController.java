@@ -41,7 +41,7 @@ import com.example.KMALegend.service.ScoreService;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("api/v1/scores")
-@CrossOrigin(origins = "https://kma-legend.onrender.com")
+@CrossOrigin(origins = {"https://kmalegend.click", "https://kma-legend.onrender.com", "http://localhost:4200"})
 @Tag(name = "Scores", description = "Score management APIs")
 public class ScoreController {
 

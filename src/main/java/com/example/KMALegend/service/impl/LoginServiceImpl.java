@@ -5,6 +5,7 @@ import com.example.KMALegend.common.responses.VirtualCalendarResponse;
 import com.example.KMALegend.entity.Student;
 import com.example.KMALegend.entity.StudentSessions;
 import com.example.KMALegend.repository.StudentSessionsRepository;
+import com.example.KMALegend.service.StudentScheduleService;
 import com.example.KMALegend.service.StudentService;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,6 +53,7 @@ public class LoginServiceImpl {
     private CloseableHttpClient httpClient;
     private final StudentSessionServiceImpl sessionService;
     private final StudentService studentService;
+    private final StudentScheduleService studentScheduleService;
     private static final String LOGIN_URL = "http://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/Login.aspx";
     private static final String STUDENT_PROFILE_URL = "http://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/StudentProfileNew/HoSoSinhVien.aspx";
     private static final String STUDENT_SCHEDULE_URL = "http://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/Reports/Form/StudentTimeTable.aspx";
@@ -73,9 +75,11 @@ public class LoginServiceImpl {
 
     private StudentSessions parseStudentSession(String targetSplit, String studentCode) {
         int startIndex = targetSplit.indexOf("Set-Cookie:");
-        int endIndex = targetSplit.indexOf(";", startIndex);
+        int endIndex = (startIndex != -1) ? targetSplit.indexOf(";", startIndex) : -1;
 
-        String cookieData = (startIndex != -1) ? targetSplit.substring(startIndex, endIndex) : "NULL COOKIE DATA";
+        String cookieData = (startIndex != -1 && endIndex != -1)
+                ? targetSplit.substring(startIndex, endIndex)
+                : "NULL COOKIE DATA";
         return StudentSessions.builder()
                 .studentCode(studentCode)
                 .cookieData(cookieData)
@@ -120,6 +124,10 @@ public class LoginServiceImpl {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(Map.of("code", "401", "message", "Wrong Password"));
             }
+            if (wrongPass != null && !wrongPass.isBlank()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("code", "401", "message", wrongPass.trim()));
+            }
 
             String cookieData = cookieStore.getCookies().toString();
 
@@ -129,8 +137,13 @@ public class LoginServiceImpl {
             String profileGetHtml = EntityUtils.toString(profileGetEntity);
 
             Document profileDoc = Jsoup.parse(profileGetHtml);
-            String displayName = profileDoc.select("input[name=txtHoDem]").val() + " " + profileDoc.select("input[name=txtTen]").val();
+            String displayName = (profileDoc.select("input[name=txtHoDem]").val() + " " + profileDoc.select("input[name=txtTen]").val()).trim();
             String studentCode = profileDoc.select("input[name=txtMaSV]").val();
+            if (studentCode == null || studentCode.isBlank()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("code", "401", "message", "Không thể xác thực tài khoản trên cổng đào tạo. Vui lòng kiểm tra lại tên đăng nhập và mật khẩu."));
+            }
+            studentCode = studentCode.trim().toUpperCase();
             String gender = profileDoc.select("select[name=drpGioiTinh] option[selected]").text();
             String birthday = profileDoc.select("input[name=txtNgaySinh]").val();
             String birthPlace = profileDoc.select("input[name=txtNoiSinh]").val();
@@ -183,35 +196,48 @@ public class LoginServiceImpl {
 
             List<Map<String, String>> scheduleData = new ArrayList<>();
             for (Element row : scheduleRows) {
+                Elements cells = row.select("td");
+                if (cells.size() < 6) {
+                    continue;
+                }
                 Map<String, String> rowData = new HashMap<>();
-                rowData.put("course_name", row.select("td").get(1).text());
-                rowData.put("course_code", row.select("td").get(2).text());
-//                rowData.put("studySchedule", row.select("td").get(3).html().replace("<br>", "\n"));
-                String location = row.select("td").get(4).text();
-                Map<String, String> parsedSchedule = parseSchedule(row.select("td").get(3).html().replace("<br>", "\n"), location);
-                rowData.put("study_days", parsedSchedule.get("days"));
-                rowData.put("lessons", parsedSchedule.get("lessons"));
+                rowData.put("course_name", cells.get(1).text());
+                rowData.put("course_code", cells.get(2).text());
+                String location = cells.get(4).text();
+                Map<String, String> parsedSchedule = parseSchedule(cells.get(3).html().replace("<br>", "\n"), location);
+                rowData.put("study_days", parsedSchedule.getOrDefault("days", ""));
+                rowData.put("lessons", parsedSchedule.getOrDefault("lessons", ""));
                 rowData.put("study_location", parsedSchedule.get("locations") != null ? parsedSchedule.get("locations") : location);
-                rowData.put("teacher", row.select("td").get(5).text());
+                rowData.put("teacher", cells.get(5).text());
                 scheduleData.add(rowData);
             }
 
-//            String token = Jwts.builder()
-//                    .setSubject(username)
-//                    .setIssuedAt(new Date())
-//                    .setExpiration(new Date(System.currentTimeMillis() + expiration * 1000L))
-//                    .signWith(SignatureAlgorithm.HS256, getSigninKey())
-//                    .compact();
+            String semesterHint = extractSemesterHint(scheduleDoc);
+            String liveHash = null;
+            if (!scheduleData.isEmpty()) {
+                String label = studentScheduleService.deriveLabel(semesterHint, scheduleData);
+                studentScheduleService.saveScheduleIfNotEmpty(studentCode, label, scheduleData);
+                liveHash = studentScheduleService.computeScheduleHash(scheduleData);
+            }
+            List<Map<String, Object>> savedSchedules = studentScheduleService.getSavedSchedules(studentCode, liveHash);
+            boolean scheduleIsCached = scheduleData.isEmpty() && !savedSchedules.isEmpty();
+            Object effectiveSchedule = !scheduleData.isEmpty()
+                    ? scheduleData
+                    : (!savedSchedules.isEmpty() ? savedSchedules.get(0).get("schedule") : scheduleData);
+
             sessionService.saveUserSession(parseStudentSession(loginGetResponse.toString(),
                     username.toUpperCase()), request);
+
+            Map<String, Object> responseData = new LinkedHashMap<>();
+            responseData.put("student_info", studentInfo);
+            responseData.put("student_schedule", effectiveSchedule);
+            responseData.put("saved_schedules", savedSchedules);
+            responseData.put("schedule_is_cached", scheduleIsCached);
 
             return ResponseEntity.ok(Map.of(
                     "code", "200",
                     "message", "OK",
-                    "data", Map.of(
-                            "student_info", studentInfo,
-                            "student_schedule", scheduleData
-                    )
+                    "data", responseData
             ));
 
         } catch (IOException | ParseException e) {
@@ -219,6 +245,29 @@ public class LoginServiceImpl {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("code", "500", "message", "Error: " + e.getMessage()));
         }
+    }
+
+    private String extractSemesterHint(Document scheduleDoc) {
+        if (scheduleDoc == null) {
+            return null;
+        }
+        String[] selectors = {
+                "select[name*=Term] option[selected]",
+                "select[name*=Semester] option[selected]",
+                "select[name*=HocKy] option[selected]",
+                "select[id*=Term] option[selected]",
+                "select[id*=Semester] option[selected]"
+        };
+        for (String selector : selectors) {
+            Element selected = scheduleDoc.selectFirst(selector);
+            if (selected != null) {
+                String text = selected.text().trim();
+                if (!text.isBlank() && !text.toLowerCase().contains("chọn")) {
+                    return text;
+                }
+            }
+        }
+        return null;
     }
 
     public String getLoginPayload(String username, String password) {
