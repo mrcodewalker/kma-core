@@ -65,8 +65,8 @@ class StudentScheduleServiceImplTest {
                 Map.of("study_days", "01/09/2026 15/12/2026")
         );
 
-        assertEquals("HK1 2026-2027", service.deriveLabel("  HK1 2026-2027 ", schedule));
-        assertEquals("Lịch học 01/09/2026 - 15/12/2026", service.deriveLabel(null, schedule));
+        assertEquals("HK1 2026-2027 (01/09/2026 - 15/12/2026)", service.deriveLabel("  HK1 2026-2027 ", schedule));
+        assertEquals("Kỳ 01/09/2026 - 15/12/2026", service.deriveLabel(null, schedule));
     }
 
     @Test

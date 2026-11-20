@@ -61,12 +61,9 @@ public class StudentScheduleServiceImpl implements StudentScheduleService {
 
     @Override
     public String deriveLabel(String semesterHint, List<Map<String, String>> scheduleData) {
-        if (semesterHint != null && !semesterHint.isBlank()) {
-            return semesterHint.trim();
-        }
+        LocalDate minDate = null;
+        LocalDate maxDate = null;
         if (scheduleData != null && !scheduleData.isEmpty()) {
-            LocalDate minDate = null;
-            LocalDate maxDate = null;
             for (Map<String, String> course : scheduleData) {
                 String studyDays = course.get("study_days");
                 if (studyDays == null || studyDays.isBlank()) {
@@ -85,9 +82,18 @@ public class StudentScheduleServiceImpl implements StudentScheduleService {
                     }
                 }
             }
-            if (minDate != null && maxDate != null) {
-                return "Lịch học " + minDate.format(DMY_FORMAT) + " - " + maxDate.format(DMY_FORMAT);
-            }
+        }
+
+        String dateRange = (minDate != null && maxDate != null)
+                ? minDate.format(DMY_FORMAT) + " - " + maxDate.format(DMY_FORMAT)
+                : null;
+
+        if (semesterHint != null && !semesterHint.isBlank()) {
+            String hint = semesterHint.trim();
+            return dateRange != null ? hint + " (" + dateRange + ")" : hint;
+        }
+        if (dateRange != null) {
+            return "Kỳ " + dateRange;
         }
         return "Lịch học (" + LocalDate.now().format(DMY_FORMAT) + ")";
     }

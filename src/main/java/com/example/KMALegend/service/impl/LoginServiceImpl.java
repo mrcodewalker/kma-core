@@ -110,7 +110,7 @@ public class LoginServiceImpl {
             }
 
             HttpPost loginPost = new HttpPost(LOGIN_URL);
-            HttpEntity formEntity = new UrlEncodedFormEntity(urlParameters);
+            HttpEntity formEntity = new UrlEncodedFormEntity(urlParameters, "UTF-8");
             loginPost.setEntity(formEntity);
 
             HttpResponse loginPostResponse = httpClient.execute(loginPost);
@@ -136,14 +136,31 @@ public class LoginServiceImpl {
             HttpEntity profileGetEntity = profileGetResponse.getEntity();
             String profileGetHtml = EntityUtils.toString(profileGetEntity);
 
+            HttpGet scheduleGet = new HttpGet(STUDENT_SCHEDULE_URL);
+            HttpResponse scheduleGetResponse = httpClient.execute(scheduleGet);
+            HttpEntity scheduleGetEntity = scheduleGetResponse.getEntity();
+            String scheduleGetHtml = EntityUtils.toString(scheduleGetEntity);
+
             Document profileDoc = Jsoup.parse(profileGetHtml);
-            String displayName = (profileDoc.select("input[name=txtHoDem]").val() + " " + profileDoc.select("input[name=txtTen]").val()).trim();
-            String studentCode = profileDoc.select("input[name=txtMaSV]").val();
-            if (studentCode == null || studentCode.isBlank()) {
+            Document scheduleDoc = Jsoup.parse(scheduleGetHtml);
+
+            if (isLoginPage(profileDoc) && isLoginPage(scheduleDoc)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(Map.of("code", "401", "message", "Không thể xác thực tài khoản trên cổng đào tạo. Vui lòng kiểm tra lại tên đăng nhập và mật khẩu."));
             }
-            studentCode = studentCode.trim().toUpperCase();
+
+            String displayName = (profileDoc.select("input[name=txtHoDem]").val() + " " + profileDoc.select("input[name=txtTen]").val()).trim();
+            String studentCode = profileDoc.select("input[name=txtMaSV]").val();
+            if (studentCode == null || studentCode.isBlank()) {
+                studentCode = extractStudentCodeFallback(profileDoc, scheduleDoc, username);
+            } else {
+                studentCode = studentCode.trim().toUpperCase();
+            }
+
+            if (displayName.isBlank()) {
+                displayName = extractDisplayNameFallback(profileDoc, scheduleDoc, studentCode);
+            }
+
             String gender = profileDoc.select("select[name=drpGioiTinh] option[selected]").text();
             String birthday = profileDoc.select("input[name=txtNgaySinh]").val();
             String birthPlace = profileDoc.select("input[name=txtNoiSinh]").val();
@@ -157,7 +174,7 @@ public class LoginServiceImpl {
             String studentClass = parseStudentClassFromCode(studentCode);
             Student student = Student.builder()
                     .studentCode(studentCode)
-                    .studentName(displayName)
+                    .studentName(displayName.isBlank() ? studentCode : displayName)
                     .studentClass(studentClass)
                     .gender(gender)
                     .birthday(birthday)
@@ -174,8 +191,21 @@ public class LoginServiceImpl {
                 studentService.updateStudentInfo(student);
             }
 
+            Student persistedStudent = studentService.findByStudentCode(studentCode);
+            if (persistedStudent != null) {
+                if (displayName.isBlank() && persistedStudent.getStudentName() != null) {
+                    displayName = persistedStudent.getStudentName();
+                }
+                if ((gender == null || gender.isBlank()) && persistedStudent.getGender() != null) {
+                    gender = persistedStudent.getGender();
+                }
+                if ((birthday == null || birthday.isBlank()) && persistedStudent.getBirthday() != null) {
+                    birthday = persistedStudent.getBirthday();
+                }
+            }
+
             Map<String, String> studentInfo = new HashMap<>();
-            studentInfo.put("display_name", displayName);
+            studentInfo.put("display_name", displayName.isBlank() ? studentCode : displayName);
             studentInfo.put("student_code", studentCode);
             studentInfo.put("gender", gender);
             studentInfo.put("birthday", birthday);
@@ -186,12 +216,6 @@ public class LoginServiceImpl {
             studentInfo.put("phone", maskField(phone));
             studentInfo.put("email", maskEmail(email));
 
-            HttpGet scheduleGet = new HttpGet(STUDENT_SCHEDULE_URL);
-            HttpResponse scheduleGetResponse = httpClient.execute(scheduleGet);
-            HttpEntity scheduleGetEntity = scheduleGetResponse.getEntity();
-            String scheduleGetHtml = EntityUtils.toString(scheduleGetEntity);
-
-            Document scheduleDoc = Jsoup.parse(scheduleGetHtml);
             Elements scheduleRows = scheduleDoc.select("tr.cssListItem, tr.cssListAlternativeItem");
 
             List<Map<String, String>> scheduleData = new ArrayList<>();
@@ -245,6 +269,60 @@ public class LoginServiceImpl {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("code", "500", "message", "Error: " + e.getMessage()));
         }
+    }
+
+    private boolean isLoginPage(Document doc) {
+        if (doc == null) {
+            return true;
+        }
+        return doc.selectFirst("input[name=txtUserName]") != null
+                && doc.selectFirst("input[name=txtPassword]") != null;
+    }
+
+    private String extractStudentCodeFallback(Document profileDoc, Document scheduleDoc, String username) {
+        String[] selectors = {
+                "#lblMaSV",
+                "span[id*=MaSV]",
+                "input[id*=MaSV]",
+                "#PageHeader1_lblUserFullName",
+                "span[id*=lblUserFullName]"
+        };
+        for (Document doc : new Document[]{profileDoc, scheduleDoc}) {
+            if (doc == null) continue;
+            for (String sel : selectors) {
+                Element el = doc.selectFirst(sel);
+                if (el != null) {
+                    String val = el.tagName().equalsIgnoreCase("input") ? el.val() : el.text();
+                    Matcher m = Pattern.compile("((?:AT|CT|DT)\\d+)", Pattern.CASE_INSENSITIVE).matcher(val);
+                    if (m.find()) {
+                        return m.group(1).toUpperCase();
+                    }
+                }
+            }
+        }
+        return username != null ? username.trim().toUpperCase() : "";
+    }
+
+    private String extractDisplayNameFallback(Document profileDoc, Document scheduleDoc, String studentCode) {
+        String[] selectors = {
+                "#lblHoTen",
+                "span[id*=HoTen]",
+                "#PageHeader1_lblUserFullName",
+                "span[id*=lblUserFullName]"
+        };
+        for (Document doc : new Document[]{profileDoc, scheduleDoc}) {
+            if (doc == null) continue;
+            for (String sel : selectors) {
+                Element el = doc.selectFirst(sel);
+                if (el != null) {
+                    String text = el.text().trim();
+                    if (!text.isBlank()) {
+                        return text.replaceAll("\\s*\\([^)]*\\)\\s*$", "").trim();
+                    }
+                }
+            }
+        }
+        return studentCode != null ? studentCode : "";
     }
 
     private String extractSemesterHint(Document scheduleDoc) {
@@ -626,8 +704,11 @@ public class LoginServiceImpl {
 
     private Map<String, String> parseInitialFormData(Document doc) {
         Map<String, String> formData = new HashMap<>();
-        for (Element input : doc.select("input")) {
-            formData.put(input.attr("name"), input.attr("value"));
+        for (Element input : doc.select("input:not([type=submit]):not([type=button]):not([type=reset]):not([type=image])")) {
+            String name = input.attr("name");
+            if (!name.isBlank()) {
+                formData.put(name, input.attr("value"));
+            }
         }
         return formData;
     }

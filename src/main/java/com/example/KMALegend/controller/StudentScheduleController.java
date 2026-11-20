@@ -2,6 +2,7 @@ package com.example.KMALegend.controller;
 
 import com.example.KMALegend.encode.DecryptedRequestWrapper;
 import com.example.KMALegend.service.StudentScheduleService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,7 +25,8 @@ public class StudentScheduleController {
     private final StudentScheduleService studentScheduleService;
     private final ObjectMapper objectMapper;
 
-    @Operation(summary = "Get saved schedules by student", description = "Returns all saved schedules for an encrypted student code")
+    @Operation(summary = "Sync and get saved schedules by student",
+            description = "Optionally saves a non-empty schedule from client session, then returns all saved schedule periods for the student")
     @PostMapping("/by-student")
     public ResponseEntity<?> getSavedSchedulesByStudent(HttpServletRequest request) {
         try {
@@ -39,9 +41,22 @@ public class StudentScheduleController {
 
             String trimmed = decryptedJson.trim();
             String studentCode;
+            String label = null;
+            List<Map<String, String>> incomingSchedule = null;
+
             if (trimmed.startsWith("{")) {
                 JsonNode node = objectMapper.readTree(trimmed);
                 studentCode = node.path("studentCode").asText("").trim();
+                if (node.hasNonNull("label")) {
+                    label = node.path("label").asText("").trim();
+                }
+                JsonNode scheduleNode = node.get("schedule");
+                if (scheduleNode != null && scheduleNode.isArray() && !scheduleNode.isEmpty()) {
+                    incomingSchedule = objectMapper.convertValue(
+                            scheduleNode,
+                            new TypeReference<List<Map<String, String>>>() {}
+                    );
+                }
             } else {
                 studentCode = trimmed;
             }
@@ -53,7 +68,14 @@ public class StudentScheduleController {
                 ));
             }
 
-            List<Map<String, Object>> savedSchedules = studentScheduleService.getSavedSchedules(studentCode, null);
+            String liveHash = null;
+            if (incomingSchedule != null && !incomingSchedule.isEmpty()) {
+                String resolvedLabel = studentScheduleService.deriveLabel(label, incomingSchedule);
+                studentScheduleService.saveScheduleIfNotEmpty(studentCode, resolvedLabel, incomingSchedule);
+                liveHash = studentScheduleService.computeScheduleHash(incomingSchedule);
+            }
+
+            List<Map<String, Object>> savedSchedules = studentScheduleService.getSavedSchedules(studentCode, liveHash);
             return ResponseEntity.ok(Map.of(
                     "code", "200",
                     "message", "OK",
