@@ -54,10 +54,10 @@ public class LoginServiceImpl {
     private final StudentSessionServiceImpl sessionService;
     private final StudentService studentService;
     private final StudentScheduleService studentScheduleService;
-    private static final String LOGIN_URL = "http://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/Login.aspx";
-    private static final String STUDENT_PROFILE_URL = "http://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/StudentProfileNew/HoSoSinhVien.aspx";
-    private static final String STUDENT_SCHEDULE_URL = "http://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/Reports/Form/StudentTimeTable.aspx";
-    private static final String STUDENT_VIRTUAL_CALENDAR = "http://qldt.actvn.edu.vn/cmcsoft.iu.web.info/StudyRegister/StudyRegister.aspx";
+    private static final String LOGIN_URL = "https://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/Login.aspx";
+    private static final String STUDENT_PROFILE_URL = "https://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/StudentProfileNew/HoSoSinhVien.aspx";
+    private static final String STUDENT_SCHEDULE_URL = "https://qldt.actvn.edu.vn/CMCSoft.IU.Web.Info/Reports/Form/StudentTimeTable.aspx";
+    private static final String STUDENT_VIRTUAL_CALENDAR = "https://qldt.actvn.edu.vn/cmcsoft.iu.web.info/StudyRegister/StudyRegister.aspx";
     private static final String DATE_FORMAT = "dd/MM/yyyy";
 
     @PostConstruct
@@ -95,8 +95,9 @@ public class LoginServiceImpl {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpGet loginGet = new HttpGet(LOGIN_URL);
             HttpResponse loginGetResponse = httpClient.execute(loginGet);
+            System.out.println("Login GET status: " + loginGetResponse.getStatusLine());
             HttpEntity loginGetEntity = loginGetResponse.getEntity();
-            String loginGetHtml = EntityUtils.toString(loginGetEntity);
+            String loginGetHtml = EntityUtils.toString(loginGetEntity, "UTF-8");
 
             Document loginDoc = Jsoup.parse(loginGetHtml);
             Map<String, String> formData = parseInitialFormData(loginDoc);
@@ -114,11 +115,14 @@ public class LoginServiceImpl {
             loginPost.setEntity(formEntity);
 
             HttpResponse loginPostResponse = httpClient.execute(loginPost);
+            System.out.println("Login POST status: " + loginPostResponse.getStatusLine()
+                    + ", Location: " + loginPostResponse.getFirstHeader("Location"));
             HttpEntity loginPostEntity = loginPostResponse.getEntity();
-            String loginPostHtml = EntityUtils.toString(loginPostEntity);
+            String loginPostHtml = EntityUtils.toString(loginPostEntity, "UTF-8");
 
             Document postLoginDoc = Jsoup.parse(loginPostHtml);
             String wrongPass = postLoginDoc.select("#lblErrorInfo").text();
+            System.out.println("Login POST #lblErrorInfo: '" + wrongPass + "'");
 
             if ("Bạn đã nhập sai tên hoặc mật khẩu!".equals(wrongPass) || "Tên đăng nhập không đúng!".equals(wrongPass)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -134,15 +138,22 @@ public class LoginServiceImpl {
             HttpGet profileGet = new HttpGet(STUDENT_PROFILE_URL);
             HttpResponse profileGetResponse = httpClient.execute(profileGet);
             HttpEntity profileGetEntity = profileGetResponse.getEntity();
-            String profileGetHtml = EntityUtils.toString(profileGetEntity);
+            String profileGetHtml = EntityUtils.toString(profileGetEntity, "UTF-8");
 
             HttpGet scheduleGet = new HttpGet(STUDENT_SCHEDULE_URL);
             HttpResponse scheduleGetResponse = httpClient.execute(scheduleGet);
             HttpEntity scheduleGetEntity = scheduleGetResponse.getEntity();
-            String scheduleGetHtml = EntityUtils.toString(scheduleGetEntity);
+            String scheduleGetHtml = EntityUtils.toString(scheduleGetEntity, "UTF-8");
 
             Document profileDoc = Jsoup.parse(profileGetHtml);
             Document scheduleDoc = Jsoup.parse(scheduleGetHtml);
+
+            System.out.println("Profile GET status: " + profileGetResponse.getStatusLine()
+                    + ", isLoginPage=" + isLoginPage(profileDoc)
+                    + ", txtMaSV='" + profileDoc.select("input[name=txtMaSV]").val() + "'");
+            System.out.println("Schedule GET status: " + scheduleGetResponse.getStatusLine()
+                    + ", isLoginPage=" + isLoginPage(scheduleDoc)
+                    + ", rows=" + scheduleDoc.select("tr.cssListItem, tr.cssListAlternativeItem").size());
 
             if (isLoginPage(profileDoc) && isLoginPage(scheduleDoc)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -265,7 +276,7 @@ public class LoginServiceImpl {
             ));
 
         } catch (IOException | ParseException e) {
-//            e.printStackTrace();
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("code", "500", "message", "Error: " + e.getMessage()));
         }

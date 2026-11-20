@@ -44,10 +44,11 @@ public class LoginController {
             String password = credentials.get("password");
             return loginService.login(username, password, request);
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(Map.of(
                 "error", "Bad Request",
                 "message", "Invalid request format or decryption failed",
-                "details", e.getMessage()
+                "details", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()
             ));
         }
     }
@@ -68,10 +69,11 @@ public class LoginController {
             String password = credentials.get("password");
             return loginService.loginVirtualCalendar(username, password, session, request);
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(Map.of(
                 "error", "Bad Request",
                 "message", "Invalid request format or decryption failed",
-                "details", e.getMessage()
+                "details", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()
             ));
         }
     }
